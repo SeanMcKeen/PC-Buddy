@@ -21,20 +21,55 @@
 
     <div id="mainContent">
       <div id="systemHealth" class="section active">
+
+        <!-- System Information Card -->
+        <div class="tool-card" id="systemInfoCard">
+          <h3>System Info</h3>
+          <ul id="systemInfoList" class="system-info-list"></ul>
+        </div>
+
+        <!-- System Repair Card -->
         <div class="tool-card" id="systemRepairCard">
           <h3>System Repair Utility</h3>
-          <p class="description">This will scan and repair corrupted system files using SFC and DISM.</p>
+          <p class="description">This will find and repair any corrupted files.</p>
 
-          <button id="repairBtn">Start System Repair</button>
+          <button class="tool-btn" data-action="systemRepair">Start Scan</button>
 
-          <div id="loadingMessage" style="display: none;">
-            <div id="spinner"></div>
-            <p id="animatedText">Initializing scan...</p>
-            <p id="estimatedTime">Estimated time: ~2 minutes</p>
+          <div class="loadingMessage" style="display: none;">
+            <div class="spinner"></div>
+            <p class="statusText">Running...</p>
+            <p class="estimatedTime">Estimated time: ~1 minute</p>
           </div>
 
-          <div id="repairResult"></div>
+          <div class="toolResult"></div>
         </div>
+
+        <!-- Startup Apps Card -->
+        <div class="tool-card" id="startupOptimizerCard">
+          <h3>Startup Optimizer</h3>
+          <p class="description">Disable unnecessary programs from starting when your PC boots up.</p>
+          <div id="startupList">
+            <!-- JS will populate this list -->
+          </div>
+        </div>
+
+        <!-- Disk Cleanup Card -->
+        <div class="tool-card" id="diskCleanupCard">
+          <h3>Disk Cleanup Utility</h3>
+          <p class="description">This will cleanup any temporary files on your main disk. (C:)</p>
+
+          <button class="tool-btn" data-action="diskCleanup">Start Cleanup</button>
+
+          <div class="loadingMessage" style="display: none;">
+            <div class="spinner"></div>
+            <p class="statusText">Running...</p>
+            <p class="estimatedTime">Estimated time: ~1 minute</p>
+          </div>
+
+          <div class="toolResult"></div>
+        </div>
+
+
       </div>
 
       <div id="folders" class="section">

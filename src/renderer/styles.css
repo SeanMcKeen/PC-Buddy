@@ -1,6 +1,7 @@
+
 body {
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  background-color: #f5f7fa;
+  background-color: #f0f2f5;
   margin: 0;
   padding: 0;
   color: #333;
@@ -15,11 +16,12 @@ body {
 /* Sidebar */
 #sidebar {
   width: 260px;
-  background-color: #1e1e2f;
-  color: #fff;
+  background-color: #20232a;
+  color: #ffffff;
   display: flex;
   flex-direction: column;
   transition: width 0.3s ease;
+  box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
 }
 
 #sidebar.collapsed {
@@ -36,7 +38,7 @@ body {
 
 #sidebar .logo-text {
   font-size: 1.2rem;
-  color: #00bcd4;
+  color: #61dafb;
   margin: 0;
   transition: opacity 0.3s ease, width 0.3s ease;
   white-space: nowrap;
@@ -47,7 +49,6 @@ body {
   width: 0;
   opacity: 0;
 }
-
 
 #toggleSidebar {
   background: none;
@@ -74,15 +75,16 @@ body {
   align-items: center;
   padding: 10px 16px;
   margin: 8px 10px;
-  background-color: #2e2e40;
+  background-color: #282c34;
   border-radius: 6px;
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: background-color 0.2s ease;
 }
 
 #sidebar li:hover,
 #sidebar li.active {
-  background-color: #0078D7;
+  background-color: #61dafb;
+  color: #000;
 }
 
 #sidebar.collapsed li {
@@ -114,7 +116,7 @@ body {
   flex-grow: 1;
   padding: 30px 40px;
   overflow-y: auto;
-  background: #f5f7fa;
+  background: #f0f2f5;
 }
 
 .section {
@@ -122,23 +124,35 @@ body {
 }
 
 .section.active {
-  display: block;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
 }
 
-/* Tool Card */
+/* Card stays its natural height, doesn't stretch */
 .tool-card {
   background: #ffffff;
   border-radius: 12px;
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
   padding: 24px;
-  margin-bottom: 24px;
+  margin: 0; /* gap is handled by parent */
+  width: calc(50% - 12px); /* two cards per row with gap */
+  box-sizing: border-box;
+  flex: 1 1 auto;
+  min-width: 280px;
   max-width: 600px;
+}
+
+@media (max-width: 768px) {
+  .tool-card {
+    width: 100%;
+  }
 }
 
 .tool-card h3 {
   margin-top: 0;
-  font-size: 1.4rem;
-  color: #0078D7;
+  font-size: 1.25rem;
+  color: #20232a;
 }
 
 .tool-card .description {
@@ -150,8 +164,8 @@ body {
 .tool-card button {
   padding: 10px 20px;
   font-size: 1rem;
-  background-color: #0078D7;
-  color: white;
+  background-color: #61dafb;
+  color: #000;
   border: none;
   border-radius: 6px;
   cursor: pointer;
@@ -159,13 +173,13 @@ body {
 }
 
 .tool-card button:hover {
-  background-color: #005ea3;
+  background-color: #4ec0e9;
 }
 
 /* Spinner and status */
-#spinner {
+.spinner {
   border: 4px solid #ccc;
-  border-top: 4px solid #0078D7;
+  border-top: 4px solid #61dafb;
   border-radius: 50%;
   width: 40px;
   height: 40px;
@@ -178,11 +192,37 @@ body {
   100% { transform: rotate(360deg); }
 }
 
-#animatedText, #estimatedTime {
+.animatedText, .estimatedTime {
   margin-top: 10px;
   font-size: 0.95rem;
   color: #444;
   text-align: center;
+}
+
+.loadingMessage {
+  font-size: 1.2rem;
+  color: #61dafb;
+  text-align: center;
+  margin-top: 20px;
+}
+
+.estimatedTime {
+  color: #797979;
+}
+
+.toolResult {
+  text-align: center;
+  font-size: 1rem;
+  margin-top: 16px;
+  font-weight: 500;
+}
+
+.toolResult.success {
+  color: #28a745; /* green */
+}
+
+.toolResult.error {
+  color: #dc3545; /* red */
 }
 
 #repairResult {
@@ -193,11 +233,86 @@ body {
   text-align: center;
 }
 
+.system-info-list {
+  padding: 0;
+  list-style: none;
+}
+
+.system-info-list li {
+  padding: 5px 0;
+  border-bottom: 1px solid #e0e0e0;
+  font-size: 0.95rem;
+}
+
+#systemHealth {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  align-items: flex-start;
+  justify-content: space-between; /* spreads them out */
+  padding: 0; /* remove if you don’t need padding here */
+}
+
+.startup-controls-horizontal {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 170px; /* Ensure equal horizontal space for badge/button across items */
+  justify-content: flex-end;
+}
 
 
-@keyframes dots {
-  0%   { content: ''; }
-  25%  { content: '.'; }
-  50%  { content: '..'; }
-  75% { content: '...'; }
+.startup-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid #eee;
+}
+
+.startup-label {
+  display: inline-block;
+  max-width: 220px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+
+.toggle-btn {
+  padding: 5px 12px;
+  font-size: 0.9rem;
+  background-color: #f44336;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-left: 10px;
+}
+
+.safety-badge {
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: bold;
+  white-space: nowrap;
+  align-self: center;
+}
+
+.safety-badge.safe {
+  background-color: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
+}
+
+.safety-badge.caution {
+  background-color: #fff3cd;
+  color: #856404;
+  border: 1px solid #ffeeba;
+}
+
+.safety-badge.unknown {
+  background-color: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
 }
