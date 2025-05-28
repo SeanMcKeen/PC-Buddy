@@ -1,27 +1,53 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Easy PC Tools</title>
-  <link rel="stylesheet" href="styles.css">
+  <meta charset="UTF-8" />
+  <title>PC Buddy</title>
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <h1>Easy PC Tools</h1>
-  <button id="repairBtn">Run System Repair</button>
-  <div id="loadingMessage" style="display:none;">
-  <div id="spinner"></div>
-  <p id="animatedText">Scanning your system<span></span></p>
+  <div id="app">
+    <div id="sidebar" class="collapsed">
+      <div class="sidebar-header">
+        <h3 class="logo-text">PC Buddy</h3>
+        <button id="toggleSidebar" title="Toggle Sidebar">☰</button>
+      </div>
+      <ul>
+        <li class="active" data-section="systemHealth" title="System Health"><span class="icon">🖥️</span><span class="label">System Health</span></li>
+        <li data-section="folders" title="Folders"><span class="icon">📂</span><span class="label">Folders</span></li>
+        <li data-section="drivers" title="Drivers"><span class="icon">🔌</span><span class="label">Drivers</span></li>
+      </ul>
+    </div>
 
-  <div class="progress-bar-container">
-    <div class="progress-bar" id="progressBar"></div>
+    <div id="mainContent">
+      <div id="systemHealth" class="section active">
+        <div class="tool-card" id="systemRepairCard">
+          <h3>System Repair Utility</h3>
+          <p class="description">This will scan and repair corrupted system files using SFC and DISM.</p>
+
+          <button id="repairBtn">Start System Repair</button>
+
+          <div id="loadingMessage" style="display: none;">
+            <div id="spinner"></div>
+            <p id="animatedText">Initializing scan...</p>
+            <p id="estimatedTime">Estimated time: ~2 minutes</p>
+          </div>
+
+          <div id="repairResult"></div>
+        </div>
+      </div>
+
+      <div id="folders" class="section">
+        <h2>Quick Access Folders</h2>
+        <p>Coming soon...</p>
+      </div>
+
+      <div id="drivers" class="section">
+        <h2>Driver Tools</h2>
+        <p>Coming soon...</p>
+      </div>
+    </div>
   </div>
-</div>
-
-<div id="repairResult"></div>
-
-
-  <!-- Link renderer.js -->
   <script src="renderer.js"></script>
 </body>
 </html>
-

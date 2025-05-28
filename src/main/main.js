@@ -48,3 +48,4 @@ ipcMain.handle('run-sfc-and-dism', async () => {
     });
   });
 });
+
