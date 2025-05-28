@@ -1,0 +1,46 @@
+# Node modules (auto-installed)
+node_modules/
+
+# Build artifacts from electron-builder
+dist/
+out/
+build/
+
+# Logs and debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# OS-specific junk
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# VS Code project settings
+.vscode/
+
+# Package manager lock files (optional—depends on your team workflow)
+package-lock.json
+
+# Electron cache
+.cache/
+.electron/
+
+# Windows shortcut and symlink issues
+*.lnk
+
+# Env variables (if you ever use them)
+.env
+.env.*
+
+# Temporary files and backups
+*.bak
+*.tmp
+*~
+
+# 7-Zip extraction junk (from winCodeSign errors)
+C:\Users\*\AppData\Local\electron-builder\Cache\winCodeSign\*
+
+# Electron Builder config dumps
+builder-effective-config.yaml
