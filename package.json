@@ -1,10 +1,14 @@
 {
   "name": "pc-buddy",
-  "version": "1.0.1",
+  "version": "0.0.1",
+  "description": "PC Buddy - Your Desktop Assistant",
+  "author": "Sean McKeen",
+  "license": "MIT",
   "main": "src/main/main.js",
   "scripts": {
     "start": "electron .",
-    "build": "electron-builder"
+    "build": "electron-builder",
+    "build-admin": "node scripts/build-admin.js"
   },
   "build": {
     "appId": "com.smckeen.pcbuddy",
@@ -15,13 +19,19 @@
     ],
     "win": {
       "target": "nsis"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "SeanMcKeen",
+      "repo": "PC-Buddy"
     }
   },
   "devDependencies": {
+    "electron": "^29.4.6",
     "electron-builder": "^24.6.0"
   },
   "dependencies": {
-    "electron": "^29.1.0",
+    "electron-updater": "^6.6.2",
     "sudo-prompt": "^9.2.1"
   }
 }

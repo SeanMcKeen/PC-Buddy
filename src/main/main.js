@@ -3,6 +3,8 @@ const path = require('path');
 const { exec } = require('child_process');
 const { spawn } = require('child_process');
 const sudo = require('sudo-prompt');
+const { autoUpdater } = require('electron-updater');
+
 const options = {
   name: 'PC Buddy',
 };
@@ -21,7 +23,19 @@ function createWindow() {
   });
 
   win.loadFile(path.join(__dirname, '../renderer/index.html'));
+  win.webContents.once('did-finish-load', () => {
+    autoUpdater.checkForUpdatesAndNotify();
+  });
 }
+
+autoUpdater.on('update-available', () => {
+  console.log('Update available.');
+});
+
+autoUpdater.on('update-downloaded', () => {
+  console.log('Update downloaded. Will install on quit.');
+});
+
 
 app.whenReady().then(createWindow);
 
