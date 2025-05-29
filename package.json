@@ -23,7 +23,8 @@
     "publish": {
       "provider": "github",
       "owner": "SeanMcKeen",
-      "repo": "PC-Buddy"
+      "repo": "PC-Buddy",
+      "releaseType": "release"
     }
   },
   "devDependencies": {
