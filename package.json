@@ -19,15 +19,18 @@
         "to": "src",
         "filter": ["**/*"]
       },
+      "package.json"
+    ],
+    "asar": true,
+    "asarUnpack": [
+      "**/*.node"
+    ],
+    "extraResources": [
       {
         "from": "assets",
         "to": "assets",
         "filter": ["**/*"]
-      },
-      "package.json"
-    ],
-    "asarUnpack": [
-      "**/assets/**"
+      }
     ],
     "win": {
       "target": "nsis"
