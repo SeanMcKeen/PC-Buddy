@@ -1,7 +1,9 @@
 console.log('[preload.js] loaded');
 
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, shell } = require('electron');
 const os = require('os');
+const path = require('path');
+const { execFile } = require('child_process');
 
 contextBridge.exposeInMainWorld('electronAPI', {
   runSystemRepair: () => ipcRenderer.invoke('run-sfc-and-dism'),
@@ -25,6 +27,18 @@ contextBridge.exposeInMainWorld('startupAPI', {
   getStartupPrograms: () => ipcRenderer.invoke('get-startup-programs'),
   toggleStartup: (name, enable) => ipcRenderer.invoke('toggle-startup-program', name, enable),
   openTaskManager: () => ipcRenderer.send('open-task-manager')
+});
+
+contextBridge.exposeInMainWorld('folderAPI', {
+  openAppData: () => {
+    const appDataPath = path.join(os.homedir(), 'AppData');
+    console.log('[folderAPI] Opening AppData with explorer:', appDataPath);
+    execFile('explorer.exe', [appDataPath], (error) => {
+      if (error) {
+        console.error('[folderAPI] Failed to open AppData:', error);
+      }
+    });
+  }
 });
 
 

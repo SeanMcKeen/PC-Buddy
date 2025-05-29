@@ -1,13 +1,13 @@
 {
   "name": "pc-buddy",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "PC Buddy - Your Desktop Assistant",
   "author": "Sean McKeen",
   "license": "MIT",
   "main": "src/main/main.js",
   "scripts": {
     "start": "electron .",
-    "build": "electron-builder",
+    "build": "electron-builder --publish always",
     "build-admin": "node scripts/build-admin.js"
   },
   "build": {
