@@ -53,15 +53,37 @@ document.getElementById('toggleSidebar').addEventListener('click', () => {
 });
 
 // Section Switching
-document.querySelectorAll('#sidebar li').forEach(item => {
-  item.addEventListener('click', () => {
-    document.querySelectorAll('#sidebar li').forEach(i => i.classList.remove('active'));
-    item.classList.add('active');
+document.addEventListener('DOMContentLoaded', () => {
+  const sidebarItems = document.querySelectorAll('#sidebar li');
+  const sections = document.querySelectorAll('.section');
 
-    const sectionId = item.getAttribute('data-section');
-    document.querySelectorAll('.section').forEach(sec => sec.classList.remove('active'));
-    document.getElementById(sectionId).classList.add('active');
+  function switchSection(sectionId) {
+    // Update sidebar active state
+    sidebarItems.forEach(item => {
+      item.classList.toggle('active', item.dataset.section === sectionId);
+    });
+
+    // Update section visibility
+    sections.forEach(section => {
+      section.classList.toggle('active', section.id === sectionId);
+    });
+  }
+
+  // Add click handlers to sidebar items
+  sidebarItems.forEach(item => {
+    item.addEventListener('click', () => {
+      const sectionId = item.dataset.section;
+      if (sectionId) {
+        switchSection(sectionId);
+      }
+    });
   });
+
+  // Initialize with the first section
+  const defaultSection = sidebarItems[0]?.dataset.section;
+  if (defaultSection) {
+    switchSection(defaultSection);
+  }
 });
 
 // Populate System Info
@@ -87,75 +109,200 @@ window.addEventListener('DOMContentLoaded', async () => {
     return;
   }
 
+  console.log('[Startup Debug] Entries returned:', entries);
   entries.forEach(program => {
+    const name = program.name || program.Name || 'Unknown';
+    const command = program.command || program.Command || 'Unknown';
+    const safety = (program.safety || program.Safety || 'unknown').toLowerCase();
+    const isEnabled = (program.status || program.Status || '').toLowerCase() === 'enabled';
+
     const container = document.createElement('div');
     container.classList.add('startup-item');
 
-    const rawCommand = program.command || 'Unknown';
-    const exeName = extractExeName(rawCommand);
+    const exeName = extractExeName(command) || name;
 
     const label = document.createElement('span');
     label.className = 'startup-label';
     label.textContent = exeName;
-    label.title = rawCommand;
+    label.title = command;
 
     const badge = document.createElement('span');
-    badge.className = `safety-badge ${program.safety}`;
+    badge.className = `safety-badge ${safety}`;
     badge.textContent =
-        program.safety === 'safe' ? 'Safe' :
-        program.safety === 'caution' ? 'Caution' : 'Unknown';
+        safety === 'safe' ? 'Safe' :
+        safety === 'caution' ? 'Caution' :
+        safety === 'danger' ? 'Danger' : 'Unknown';
 
     badge.title =
-        program.safety === 'safe'
-        ? 'This is safe to disable.'
-        : program.safety === 'caution'
-        ? 'Caution advised before disabling.'
-        : 'Disabling this may be risky.';
+        safety === 'safe'
+        ? 'Safe to disable'
+        : safety === 'caution'
+        ? 'May impact some functionality'
+        : safety === 'danger'
+        ? 'Critical system component'
+        : 'Unknown impact';
 
-    const toggle = document.createElement('button');
-    toggle.textContent = 'Disable';
-    toggle.className = 'toggle-btn';
-    toggle.onclick = async () => {
-        const isDisabling = toggle.textContent === 'Disable';
-        toggle.disabled = true;
+    const toggleContainer = document.createElement('label');
+    toggleContainer.className = 'toggle-switch';
+    
+    const toggleInput = document.createElement('input');
+    toggleInput.type = 'checkbox';
+    toggleInput.checked = isEnabled;
+    
+    const toggleSlider = document.createElement('span');
+    toggleSlider.className = 'toggle-slider';
+    
+    toggleContainer.appendChild(toggleInput);
+    toggleContainer.appendChild(toggleSlider);
 
-        try {
-        const result = await window.startupAPI.toggleStartup(program.name, !isDisabling);
-        toggle.textContent = isDisabling ? 'Enable' : 'Disable';
-        toggle.classList.toggle('disabled', isDisabling);
-        console.log(result);
-        } catch (err) {
-        console.error('Toggle failed:', err);
-        alert('Could not toggle this startup item. Try running as administrator.');
-        } finally {
-        toggle.disabled = false;
+    toggleInput.onchange = async (e) => {
+      // If it's a dangerous item, show confirmation dialog
+      if (safety === 'danger') {
+        // Prevent the immediate toggle
+        e.preventDefault();
+        
+        // Reset the checkbox to its previous state
+        toggleInput.checked = !toggleInput.checked;
+        
+        // Show confirmation dialog
+        const confirmed = await showModal({
+          type: 'warning',
+          title: 'Warning',
+          message: "This is a critical system component. Disabling it could have unexpected effects on your PC's functionality.\n\nAre you sure you want to continue?",
+          confirmText: 'Yes, I understand'
+        });
+        
+        if (!confirmed) {
+          return; // User cancelled
         }
+        
+        // User confirmed, update the checkbox
+        toggleInput.checked = !toggleInput.checked;
+      }
+
+      toggleInput.disabled = true;
+      toggleSlider.classList.add('disabled');
+
+      try {
+        const result = await window.startupAPI.toggleStartup(name, toggleInput.checked);
+        console.log(result);
+      } catch (err) {
+        console.error('Toggle failed:', err);
+        toggleInput.checked = !toggleInput.checked; // Revert the toggle
+        await showModal({
+          type: 'error',
+          title: 'Operation Failed',
+          message: 'Could not toggle this startup item. Try running the application as administrator.',
+          confirmText: 'OK',
+          showCancel: false
+        });
+      } finally {
+        toggleInput.disabled = false;
+        toggleSlider.classList.remove('disabled');
+      }
     };
 
     const controls = document.createElement('div');
     controls.className = 'startup-controls-horizontal';
-    controls.append(badge, toggle);
+    controls.append(badge, toggleContainer);
 
     container.append(label, controls);
     listEl.appendChild(container);
-    });
+  });
 });
 
 function extractExeName(commandLine) {
   if (!commandLine) return 'Unknown';
 
-  // Match .exe or .lnk from quoted string or entire command
-  const quotedMatch = commandLine.match(/"(.*?)"/);
-  const quotedTarget = quotedMatch ? quotedMatch[1] : commandLine;
+  // Skip environment variable expansion for now
+  const normalized = commandLine;
 
-  const exeMatch = quotedTarget.match(/([a-zA-Z0-9._-]+\.exe)/i);
-  const lnkMatch = quotedTarget.match(/([a-zA-Z0-9 _-]+\.lnk)/i);
+  const match = normalized.match(/(?:^|\\)([a-zA-Z0-9 _.-]+\.(exe|lnk))\b/i);
 
-  let fileName = exeMatch ? exeMatch[1] : (lnkMatch ? lnkMatch[1] : 'Unknown');
+  if (!match) return 'Unknown';
 
-  return fileName.trim(); // Remove .lnk for cleaner display
+  let name = match[1];
+  if (name.toLowerCase().endsWith('.lnk')) {
+    name = name.slice(0, -4);
+  }
+
+  return name.trim();
 }
 
-document.getElementById('openTaskManagerBtn').addEventListener('click', () => {
-  window.startupAPI.openTaskManager();
+window.addEventListener('DOMContentLoaded', () => {
+  const btn = document.getElementById('openTaskManagerBtn');
+  if (btn) {
+    btn.addEventListener('click', () => {
+      window.startupAPI.openTaskManager();
+    });
+  }
 });
+
+function showModal({ type = 'warning', title, message, confirmText = 'OK', showCancel = true }) {
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    
+    const content = document.createElement('div');
+    content.className = 'modal-content';
+    
+    const header = document.createElement('div');
+    header.className = `modal-header ${type}`;
+    
+    const icon = document.createElement('span');
+    icon.className = 'modal-warning-icon';
+    icon.textContent = type === 'error' ? '❌' : '⚠️';
+    
+    const titleEl = document.createElement('h3');
+    titleEl.className = 'modal-title';
+    titleEl.textContent = title;
+    
+    header.appendChild(icon);
+    header.appendChild(titleEl);
+    
+    const body = document.createElement('div');
+    body.className = 'modal-body';
+    body.textContent = message;
+    
+    const actions = document.createElement('div');
+    actions.className = 'modal-actions';
+    
+    if (showCancel) {
+      const cancelBtn = document.createElement('button');
+      cancelBtn.className = 'modal-button cancel';
+      cancelBtn.textContent = 'Cancel';
+      cancelBtn.onclick = () => {
+        document.body.removeChild(overlay);
+        resolve(false);
+      };
+      actions.appendChild(cancelBtn);
+    }
+    
+    const confirmBtn = document.createElement('button');
+    confirmBtn.className = `modal-button ${type}`;
+    confirmBtn.textContent = confirmText;
+    confirmBtn.onclick = () => {
+      document.body.removeChild(overlay);
+      resolve(true);
+    };
+    
+    actions.appendChild(confirmBtn);
+    
+    content.appendChild(header);
+    content.appendChild(body);
+    content.appendChild(actions);
+    
+    overlay.appendChild(content);
+    document.body.appendChild(overlay);
+
+    // Handle escape key
+    const handleEscape = (e) => {
+      if (e.key === 'Escape' && showCancel) {
+        document.body.removeChild(overlay);
+        window.removeEventListener('keydown', handleEscape);
+        resolve(false);
+      }
+    };
+    window.addEventListener('keydown', handleEscape);
+  });
+}

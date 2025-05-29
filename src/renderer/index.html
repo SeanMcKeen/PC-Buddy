@@ -51,6 +51,17 @@
           <div id="startupList">
             <!-- JS will populate this list -->
           </div>
+          <div class="task-manager-note">
+            <div class="task-manager-warning">
+              <span class="warning-icon">⚠️</span>
+              <span>Warning: Task Manager is an advanced tool. Disabling critical items may cause system issues.</span>
+            </div>
+            <p>For advanced startup management, use Task Manager:</p>
+            <button class="task-manager-link" onclick="window.startupAPI.openTaskManager()">
+              <span class="icon">⚙️</span>
+              Open Task Manager Startup
+            </button>
+          </div>
         </div>
 
         <!-- Disk Cleanup Card -->

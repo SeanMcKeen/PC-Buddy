@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const { exec } = require('child_process');
+const { spawn } = require('child_process');
 const sudo = require('sudo-prompt');
 const options = {
   name: 'PC Buddy',
@@ -8,8 +9,8 @@ const options = {
 
 function createWindow() {
   const win = new BrowserWindow({
-    width: 800,
-    height: 600,
+    width: 1200,
+    height: 800,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,       // required for contextBridge
@@ -62,116 +63,83 @@ ipcMain.handle('run-disk-cleanup', async () => {
   });
 });
 
-ipcMain.handle('get-startup-programs', async () => {
-  return new Promise((resolve) => {
-    const psCommand = `$startup = @();
-    $wmi = Get-CimInstance Win32_StartupCommand;
-    foreach ($i in $wmi) {
-      $startup += [PSCustomObject]@{
-        Name = $i.Name;
-        Command = $i.Command;
-        Source = 'WMI'
-      }
-    };
-    $folders = @(
-      "$env:APPDATA\\Microsoft\\Windows\\Start Menu\\Programs\\Startup",
-      "$env:ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\Startup"
-    );
-    foreach ($f in $folders) {
-      if (Test-Path $f) {
-        Get-ChildItem $f -Filter *.lnk | ForEach-Object {
-          $s = $_.FullName;
-          $w = (New-Object -ComObject WScript.Shell).CreateShortcut($s);
-          $startup += [PSCustomObject]@{
-            Name = $_.BaseName;
-            Command = $w.TargetPath;
-            Source = 'Startup Folder'
-          }
-        }
-      }
-    };
-    $regKeys = @(
-      'HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run',
-      'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run'
-    );
-    foreach ($key in $regKeys) {
-      if (Test-Path $key) {
-        $p = Get-ItemProperty -Path $key;
-        foreach ($prop in $p.PSObject.Properties) {
-          if ($prop.Name -notin @('PSPath','PSParentPath','PSChildName','PSDrive','PSProvider')) {
-            $startup += [PSCustomObject]@{
-              Name = $prop.Name;
-              Command = $prop.Value;
-              Source = $key
-            }
-          }
-        }
-      }
-    };
-    $startup | Sort-Object -Property Name, Command -Unique | ConvertTo-Json -Compress
-    `.replace(/\r?\n/g, ' ').replace(/"/g, '`"');
+function fetchStartupPrograms() {
+  return new Promise((resolve, reject) => {
+    const scriptPath = path.resolve(__dirname, '..', 'assets', 'getStartupPrograms.ps1');
+    const ps = spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', scriptPath]);
 
-    const command = `powershell.exe -NoProfile -Command "${psCommand}"`;
+    let stdout = '', stderr = '';
+    ps.stdout.on('data', data => stdout += data.toString());
+    ps.stderr.on('data', data => stderr += data.toString());
 
-    exec(command, { maxBuffer: 1024 * 500 }, (err, stdout) => {
-      if (err) {
-        console.error('Startup fetch error:', err);
-        return resolve([]);
-      }
-
+    ps.on('close', (code) => {
+      if (code !== 0) return reject(new Error(`PowerShell script failed: ${stderr}`));
       try {
         let data = JSON.parse(stdout);
-        if (!Array.isArray(data)) data = [data];
-
-        const programs = data.map(entry => {
-        const rawCommand = (entry.Command || '').trim();
-        const nameFallback = entry.Name || 'Unknown';
-        const location = entry.Source || 'Unknown';
-
-        const match = rawCommand.match(/([a-zA-Z0-9_. -]+?\.(exe|lnk))/i);
-        const displayName = match ? match[1].trim() : nameFallback;
-
-        let safety = 'unknown';
-        if (location.includes('HKCU')) safety = 'safe';
-        else if (location.includes('HKLM')) safety = 'caution';
-        else if (location.toLowerCase().includes('startup')) safety = 'safe';
-        else if (location.toLowerCase().includes('wmi')) safety = 'caution';
-
-        return {
-          name: displayName,
-          command: rawCommand,
-          location,
-          safety
-        };
-      });
-
-
-        resolve(programs);
-      } catch (e) {
-        console.error('Failed to parse startup JSON:', e);
-        resolve([]);
+        data = normalizeStartupItems(data);
+        resolve(data);
+      } catch (err) {
+        reject(new Error('Failed to parse JSON from startup script.'));
       }
     });
   });
+}
+
+
+ipcMain.handle('get-startup-programs', async () => {
+  const list = await fetchStartupPrograms();
+  const priority = { caution: 2, safe: 1, unknown: 3 };
+  list.sort((a, b) => priority[a.Safety] - priority[b.Safety]);
+  return list;
 });
+
+
+function extractExecutableName(command) {
+  if (!command) return '';
+  return command
+    .replace(/%windir%/gi, 'C:\\Windows')
+    .replace(/^"(.*)"$/, '$1')
+    .trim()
+    .match(/([^\\\/]+\.exe)/i)?.[1]
+    ?.toLowerCase() || '';
+}
+
+function normalizeStartupItems(items) {
+  const seen = new Set();
+  return items.filter(item => {
+    const exe = extractExecutableName(item.Command);
+    if (!exe || seen.has(exe)) return false;
+    seen.add(exe);
+    item.Name = exe; // Update display name for consistency
+    return true;
+  });
+}
 
 ipcMain.handle('toggle-startup-program', async (event, programName, enable) => {
-  const action = enable ? 'Enable' : 'Disable';
-  const command = `powershell -Command "Write-Output 'Pretend to ${action} ${programName}'"`; // temp placeholder
+  const list = await fetchStartupPrograms();
+  const item = list.find(p => p.Name.toLowerCase() === programName.toLowerCase());
+  if (!item) throw new Error(`Startup item '${programName}' not found`);
+
+  const scriptPath = path.resolve(__dirname, '..', 'assets', 'toggleStartup.ps1');
+  
+  // Use the registry name instead of the display name
+  const command = `powershell -NoProfile -ExecutionPolicy Bypass -File "${scriptPath}" -Name "${item.RegistryName}" -Source "${item.Source}" -Enable ${enable ? '1' : '0'}`;
 
   return new Promise((resolve, reject) => {
-    sudo.exec(command, { name: 'PC Buddy' }, (error) => {
-      if (error) {
-        console.error(`${action} failed for ${programName}:`, error);
-        return reject(new Error(`${action} failed: ${error.message}`));
+    sudo.exec(command, { name: 'PC Buddy' }, (err, stdout, stderr) => {
+      if (err) {
+        console.error('[Toggle Error]', err);
+        return reject(new Error(stderr || err.message));
       }
-      resolve(`${action}d ${programName}`);
+      resolve(stdout.trim());
     });
   });
 });
 
+
+
 ipcMain.on('open-task-manager', () => {
-  exec('start taskmgr.exe', (error) => {
+  exec('start taskmgr.exe /0 /startup', (error) => {
     if (error) {
       console.error('Failed to open Task Manager:', error);
     }
