@@ -14,8 +14,16 @@
     "appId": "com.smckeen.pcbuddy",
     "productName": "PC Buddy",
     "files": [
-      "src/**/*",
-      "assets/**/*",
+      {
+        "from": "src",
+        "to": "src",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "assets",
+        "to": "assets",
+        "filter": ["**/*"]
+      },
       "package.json"
     ],
     "asarUnpack": [
