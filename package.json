@@ -22,15 +22,15 @@
       "package.json"
     ],
     "asar": true,
-    "asarUnpack": [
-      "**/*.node"
-    ],
     "extraResources": [
       {
         "from": "assets",
         "to": "assets",
-        "filter": ["**/*"]
+        "filter": ["**/*.ps1"]
       }
+    ],
+    "asarUnpack": [
+      "**/assets/*.ps1"
     ],
     "win": {
       "target": "nsis"
