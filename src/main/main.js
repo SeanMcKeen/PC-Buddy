@@ -1,7 +1,6 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
-const { exec } = require('child_process');
-const { spawn } = require('child_process');
+const { exec, spawn } = require('child_process');
 const sudo = require('sudo-prompt');
 const { autoUpdater } = require('electron-updater');
 
