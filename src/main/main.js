@@ -79,7 +79,10 @@ ipcMain.handle('run-disk-cleanup', async () => {
 
 function fetchStartupPrograms() {
   return new Promise((resolve, reject) => {
-    const scriptPath = path.resolve(__dirname, '..', 'assets', 'getStartupPrograms.ps1');
+    const scriptPath = app.isPackaged
+      ? path.join(process.resourcesPath, 'assets', 'getStartupPrograms.ps1')
+      : path.join(__dirname, '..', 'assets', 'getStartupPrograms.ps1');
+
     const ps = spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', scriptPath]);
 
     let stdout = '', stderr = '';
@@ -98,6 +101,7 @@ function fetchStartupPrograms() {
     });
   });
 }
+
 
 
 ipcMain.handle('get-startup-programs', async () => {
@@ -134,7 +138,10 @@ ipcMain.handle('toggle-startup-program', async (event, programName, enable) => {
   const item = list.find(p => p.Name.toLowerCase() === programName.toLowerCase());
   if (!item) throw new Error(`Startup item '${programName}' not found`);
 
-  const scriptPath = path.resolve(__dirname, '..', 'assets', 'toggleStartup.ps1');
+  const scriptPath = app.isPackaged
+  ? path.join(process.resourcesPath, 'assets', 'toggleStartup.ps1')
+  : path.join(__dirname, '..', 'assets', 'toggleStartup.ps1');
+
   
   // Use the registry name instead of the display name
   const command = `powershell -NoProfile -ExecutionPolicy Bypass -File "${scriptPath}" -Name "${item.RegistryName}" -Source "${item.Source}" -Enable ${enable ? '1' : '0'}`;
