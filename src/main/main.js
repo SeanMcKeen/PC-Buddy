@@ -5,6 +5,33 @@ const { spawn } = require('child_process');
 const sudo = require('sudo-prompt');
 const { autoUpdater } = require('electron-updater');
 
+console.log('[Updater] App version:', app.getVersion());
+
+autoUpdater.on('checking-for-update', () => {
+  console.log('[Updater] Checking for update...');
+});
+
+autoUpdater.on('update-not-available', () => {
+  console.log('[Updater] No update available.');
+});
+
+autoUpdater.on('update-available', (info) => {
+  console.log('[Updater] Update available:', info.version);
+});
+
+autoUpdater.on('download-progress', (p) => {
+  console.log(`[Updater] Downloading: ${Math.round(p.percent)}%`);
+});
+
+autoUpdater.on('update-downloaded', () => {
+  console.log('[Updater] Update downloaded. Will install on quit.');
+});
+
+autoUpdater.on('error', (err) => {
+  console.error('[Updater] Error:', err);
+});
+
+
 const options = {
   name: 'PC Buddy',
 };
@@ -82,6 +109,9 @@ function fetchStartupPrograms() {
     const scriptPath = app.isPackaged
       ? path.join(process.resourcesPath, 'assets', 'getStartupPrograms.ps1')
       : path.join(__dirname, '..', 'assets', 'getStartupPrograms.ps1');
+
+
+    console.log('[Debug] Looking for PowerShell script at:', scriptPath);
 
     const ps = spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', scriptPath]);
 

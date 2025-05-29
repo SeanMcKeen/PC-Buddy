@@ -15,7 +15,11 @@
     "productName": "PC Buddy",
     "files": [
       "src/**/*",
+      "assets/**/*",
       "package.json"
+    ],
+    "asarUnpack": [
+      "assets/**/*"
     ],
     "win": {
       "target": "nsis"
