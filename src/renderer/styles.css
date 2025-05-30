@@ -161,22 +161,43 @@ body {
 .section {
   display: none;
   opacity: 0;
-  transition: opacity 0.3s ease;
+  transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1), 
+              transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   position: absolute;
   left: 20px;
   right: 20px;
   top: 20px;
+  transform: translateY(10px);
 }
 
 /* True Pinterest-style masonry layout */
 .section.active {
+  display: block;
   position: relative;
   width: 100%;
   margin: 0;
   padding: 20px;
   box-sizing: border-box;
   opacity: 1;
+  transform: translateY(0);
   min-height: 500px; /* Ensure space for positioning */
+}
+
+/* Disable masonry animations during section switching */
+.section.switching-sections .tool-card {
+  transition: none !important;
+}
+
+/* Enhanced section fade-in animation */
+@keyframes fadeInSection {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* Masonry container when JavaScript masonry is active */
@@ -198,11 +219,31 @@ body {
   flex-direction: column;
   height: fit-content;
   width: 350px; /* Fixed width for consistent masonry grid */
-  transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.3s ease;
+  transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), 
+              box-shadow 0.2s ease, 
+              opacity 0.3s ease;
   position: absolute; /* Allow JavaScript positioning */
   top: 0;
   left: 0;
-  opacity: 0; /* Initially hidden until positioned */
+  opacity: 1; /* Start visible */
+  will-change: transform; /* Optimize for frequent transforms */
+  contain: layout style paint; /* Optimize rendering */
+  transform: translate3d(0, 0, 0); /* Force hardware acceleration */
+}
+
+/* Smooth masonry transitions */
+.section.active.js-masonry .tool-card {
+  transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+/* Remove jarring transitions during initial load */
+.section.active.js-masonry.loading .tool-card {
+  transition: none;
+}
+
+/* Optimize for resize operations */
+.section.active.js-masonry.resizing .tool-card {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* Fallback for non-masonry browsers */
@@ -984,4 +1025,530 @@ input:checked + .toggle-slider:before {
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.7; }
+}
+
+/* Shortcut Grid Styles */
+.shortcut-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.shortcut-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 12px;
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-decoration: none;
+  color: inherit;
+  min-height: 80px;
+  font-family: inherit;
+  font-size: 0.9rem;
+}
+
+.shortcut-btn:hover {
+  background: #e9ecef;
+  border-color: #61dafb;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.shortcut-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+.shortcut-icon {
+  font-size: 24px;
+  margin-bottom: 8px;
+  display: block;
+}
+
+.shortcut-label {
+  font-size: 0.85rem;
+  font-weight: 500;
+  text-align: center;
+  line-height: 1.2;
+  color: #333;
+}
+
+/* Responsive adjustments for shortcuts */
+@media (max-width: 768px) {
+  .shortcut-grid {
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 10px;
+  }
+  
+  .shortcut-btn {
+    min-height: 70px;
+    padding: 12px 8px;
+  }
+  
+  .shortcut-icon {
+    font-size: 20px;
+    margin-bottom: 6px;
+  }
+  
+  .shortcut-label {
+    font-size: 0.8rem;
+  }
+}
+
+/* Custom Shortcuts Styles */
+.add-custom-btn {
+  width: 100%;
+  padding: 12px;
+  background: linear-gradient(135deg, #61dafb, #4a90e2);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.9rem;
+  font-weight: 500;
+  margin-top: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.add-custom-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(74, 144, 226, 0.3);
+}
+
+.add-icon {
+  font-size: 1.1rem;
+}
+
+/* Custom Shortcut Modal */
+.custom-shortcut-modal {
+  max-width: 500px;
+  width: 95%;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  cursor: pointer;
+  color: #666;
+  padding: 4px;
+  margin-left: auto;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.modal-close:hover {
+  background: #f0f0f0;
+  color: #333;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 500;
+  color: #333;
+}
+
+.form-group input[type="text"] {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  transition: border-color 0.2s ease;
+  box-sizing: border-box;
+}
+
+.form-group input[type="text"]:focus {
+  outline: none;
+  border-color: #61dafb;
+  box-shadow: 0 0 0 2px rgba(97, 218, 251, 0.2);
+}
+
+.icon-selector {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.icon-display {
+  width: 50px;
+  height: 50px;
+  border: 2px solid #ddd;
+  border-radius: 8px;
+  background: #f8f9fa;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+}
+
+.icon-display:hover {
+  border-color: #61dafb;
+  background: #f0f8ff;
+}
+
+.icon-hint {
+  color: #666;
+  font-size: 0.85rem;
+}
+
+.path-examples {
+  margin-top: 8px;
+  padding: 12px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  border: 1px solid #e9ecef;
+}
+
+.path-examples small {
+  color: #666;
+  font-weight: 500;
+  margin-bottom: 8px;
+  display: block;
+}
+
+.example-item {
+  padding: 6px 8px;
+  margin: 4px 0;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.85rem;
+}
+
+.example-item:hover {
+  border-color: #61dafb;
+  background: #f0f8ff;
+}
+
+/* Emoji Picker Modal */
+.emoji-picker-modal {
+  max-width: 450px;
+  width: 95%;
+  max-height: 80vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.emoji-categories {
+  display: flex;
+  justify-content: space-around;
+  padding: 16px 8px;
+  border-bottom: 1px solid #e9ecef;
+  background: #f8f9fa;
+  margin: -24px -24px 16px -24px;
+}
+
+.emoji-category {
+  padding: 8px 12px;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 1.2rem;
+  transition: all 0.2s ease;
+}
+
+.emoji-category:hover,
+.emoji-category.active {
+  background: #61dafb;
+  border-color: #4a90e2;
+}
+
+.emoji-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
+  gap: 4px;
+  max-height: 300px;
+  overflow-y: auto;
+  padding: 8px;
+  border: 1px solid #e9ecef;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.emoji-item {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+  font-size: 1.2rem;
+  border: 1px solid transparent;
+}
+
+.emoji-item:hover {
+  background: #f0f8ff;
+  border-color: #61dafb;
+  transform: scale(1.1);
+}
+
+/* Custom shortcut in grid */
+.custom-shortcut {
+  position: relative;
+}
+
+.shortcut-actions {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: none;
+  gap: 4px;
+}
+
+.custom-shortcut:hover .shortcut-actions {
+  display: flex;
+}
+
+.shortcut-action-btn {
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 0.7rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.shortcut-action-btn.edit {
+  background: #ffc107;
+  color: #000;
+}
+
+.shortcut-action-btn.delete {
+  background: #dc3545;
+  color: white;
+}
+
+.shortcut-action-btn:hover {
+  transform: scale(1.1);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .custom-shortcut-modal,
+  .emoji-picker-modal {
+    max-width: 95%;
+    margin: 20px;
+  }
+  
+  .emoji-categories {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  
+  .emoji-category {
+    padding: 6px 8px;
+    font-size: 1rem;
+  }
+}
+
+/* Loading Screen Styles */
+.loading-screen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  animation: fadeOut 0.5s ease forwards;
+  animation-delay: 2.5s;
+}
+
+.loading-screen.hidden {
+  animation: fadeOut 0.5s ease forwards;
+}
+
+.loading-content {
+  text-align: center;
+  color: white;
+  animation: slideUpFade 0.8s ease-out forwards;
+}
+
+.loading-logo {
+  margin-bottom: 40px;
+}
+
+.logo-icon {
+  font-size: 4rem;
+  display: block;
+  margin-bottom: 16px;
+  animation: bounce 2s infinite;
+}
+
+.logo-title {
+  font-size: 2.5rem;
+  font-weight: 300;
+  margin: 0;
+  letter-spacing: 2px;
+  opacity: 0;
+  animation: fadeInUp 1s ease-out 0.3s forwards;
+}
+
+.loading-spinner {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 40px 0;
+  position: relative;
+  height: 80px;
+}
+
+.spinner-ring {
+  width: 60px;
+  height: 60px;
+  border: 3px solid rgba(255, 255, 255, 0.1);
+  border-top: 3px solid #ffffff;
+  border-radius: 50%;
+  position: absolute;
+  animation: spin 1.5s linear infinite;
+}
+
+.spinner-ring:nth-child(2) {
+  width: 80px;
+  height: 80px;
+  animation-delay: -0.5s;
+  animation-duration: 2s;
+}
+
+.spinner-ring:nth-child(3) {
+  width: 100px;
+  height: 100px;
+  animation-delay: -1s;
+  animation-duration: 2.5s;
+}
+
+.loading-text {
+  font-size: 1.2rem;
+  margin: 20px 0;
+  opacity: 0;
+  animation: fadeInUp 1s ease-out 0.6s forwards;
+}
+
+.loading-progress {
+  margin-top: 30px;
+  opacity: 0;
+  animation: fadeInUp 1s ease-out 0.9s forwards;
+}
+
+.progress-dots {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+}
+
+.dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  animation: dotPulse 2s infinite;
+}
+
+.dot.active {
+  background: #ffffff;
+}
+
+.dot:nth-child(2) {
+  animation-delay: 0.3s;
+}
+
+.dot:nth-child(3) {
+  animation-delay: 0.6s;
+}
+
+/* Loading Screen Animations */
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+    visibility: visible;
+  }
+  to {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+
+@keyframes slideUpFade {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes bounce {
+  0%, 20%, 50%, 80%, 100% {
+    transform: translateY(0);
+  }
+  40% {
+    transform: translateY(-10px);
+  }
+  60% {
+    transform: translateY(-5px);
+  }
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes dotPulse {
+  0%, 100% {
+    opacity: 0.3;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
 }

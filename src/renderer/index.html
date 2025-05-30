@@ -7,6 +7,29 @@
 </head>
 <body>
 
+  <!-- Loading Screen -->
+  <div id="loadingScreen" class="loading-screen">
+    <div class="loading-content">
+      <div class="loading-logo">
+        <span class="logo-icon">🖥️</span>
+        <h1 class="logo-title">PC Buddy</h1>
+      </div>
+      <div class="loading-spinner">
+        <div class="spinner-ring"></div>
+        <div class="spinner-ring"></div>
+        <div class="spinner-ring"></div>
+      </div>
+      <p class="loading-text">Loading system information...</p>
+      <div class="loading-progress">
+        <div class="progress-dots">
+          <span class="dot active"></span>
+          <span class="dot"></span>
+          <span class="dot"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- ✅ Modern Update Notification -->
   <div id="update-notification" class="update-notification" style="display: none;">
     <div class="update-card">
@@ -44,7 +67,7 @@
       </div>
       <ul>
         <li class="active" data-section="systemHealth" title="System Health"><span class="icon">🖥️</span><span class="label">System Health</span></li>
-        <li data-section="folders" title="Folders"><span class="icon">📂</span><span class="label">Folders</span></li>
+        <li data-section="shortcuts" title="Shortcuts"><span class="icon">⚡</span><span class="label">Shortcuts</span></li>
         <li data-section="drivers" title="Drivers"><span class="icon">🔌</span><span class="label">Drivers</span></li>
       </ul>
     </div>
@@ -113,15 +136,112 @@
         </div>
       </div>
 
-      <div id="folders" class="section">
-        <!-- AppData Folder Card -->
-        <div class="tool-card" id="appDataCard">
-          <h3><span class="icon">📁</span> AppData Folder</h3>
-          <p class="description">Quick access to your AppData folder (%AppData%).</p>
-          <button class="tool-btn" onclick="window.folderAPI.openAppData()">Open AppData</button>
+      <div id="shortcuts" class="section">
+        <!-- Important Folders Card -->
+        <div class="tool-card" id="foldersCard">
+          <h3><span class="icon">📁</span> Important Folders</h3>
+          <p class="description">Quick access to commonly used folders on your computer.</p>
+          <div class="shortcut-grid">
+            <button class="shortcut-btn" onclick="window.folderAPI.openAppData()">
+              <span class="shortcut-icon">📁</span>
+              <span class="shortcut-label">AppData Folder</span>
+            </button>
+            <button class="shortcut-btn" onclick="window.folderAPI.openDownloads()">
+              <span class="shortcut-icon">⬇️</span>
+              <span class="shortcut-label">Downloads</span>
+            </button>
+            <button class="shortcut-btn" onclick="window.folderAPI.openDocuments()">
+              <span class="shortcut-icon">📄</span>
+              <span class="shortcut-label">Documents</span>
+            </button>
+            <button class="shortcut-btn" onclick="window.folderAPI.openDesktop()">
+              <span class="shortcut-icon">🖥️</span>
+              <span class="shortcut-label">Desktop</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- System Settings Card -->
+        <div class="tool-card" id="systemSettingsCard">
+          <h3><span class="icon">⚙️</span> System Settings</h3>
+          <p class="description">Access important Windows settings and controls.</p>
+          <div class="shortcut-grid">
+            <button class="shortcut-btn" onclick="window.systemAPI.openControlPanel()">
+              <span class="shortcut-icon">🎛️</span>
+              <span class="shortcut-label">Control Panel</span>
+            </button>
+            <button class="shortcut-btn" onclick="window.systemAPI.openProgramsAndFeatures()">
+              <span class="shortcut-icon">🗑️</span>
+              <span class="shortcut-label">Uninstall Programs</span>
+            </button>
+            <button class="shortcut-btn" onclick="window.systemAPI.openDeviceManager()">
+              <span class="shortcut-icon">🔌</span>
+              <span class="shortcut-label">Device Manager</span>
+            </button>
+            <button class="shortcut-btn" onclick="window.systemAPI.openSystemProperties()">
+              <span class="shortcut-icon">🏠</span>
+              <span class="shortcut-label">System Properties</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Network & Internet Card -->
+        <div class="tool-card" id="networkCard">
+          <h3><span class="icon">🌐</span> Network & Internet</h3>
+          <p class="description">Manage your internet connection and network settings.</p>
+          <div class="shortcut-grid">
+            <button class="shortcut-btn" onclick="window.systemAPI.openNetworkSettings()">
+              <span class="shortcut-icon">📶</span>
+              <span class="shortcut-label">Network Settings</span>
+            </button>
+            <button class="shortcut-btn" onclick="window.systemAPI.openWifiSettings()">
+              <span class="shortcut-icon">📶</span>
+              <span class="shortcut-label">WiFi Settings</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Display & Sound Card -->
+        <div class="tool-card" id="displaySoundCard">
+          <h3><span class="icon">🖥️</span> Display & Sound</h3>
+          <p class="description">Adjust your screen and audio preferences.</p>
+          <div class="shortcut-grid">
+            <button class="shortcut-btn" onclick="window.systemAPI.openDisplaySettings()">
+              <span class="shortcut-icon">🖥️</span>
+              <span class="shortcut-label">Display Settings</span>
+            </button>
+            <button class="shortcut-btn" onclick="window.systemAPI.openSoundSettings()">
+              <span class="shortcut-icon">🔊</span>
+              <span class="shortcut-label">Sound Settings</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Windows Update Card -->
+        <div class="tool-card" id="windowsUpdateCard">
+          <h3><span class="icon">🔄</span> Windows Update</h3>
+          <p class="description">Check for and install Windows updates.</p>
+          <div class="shortcut-grid">
+            <button class="shortcut-btn" onclick="window.systemAPI.openWindowsUpdate()">
+              <span class="shortcut-icon">🔄</span>
+              <span class="shortcut-label">Windows Update</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Custom Shortcuts Card -->
+        <div class="tool-card" id="customShortcutsCard">
+          <h3><span class="icon">✨</span> Custom Shortcuts</h3>
+          <p class="description">Create your own personalized shortcuts with custom names and icons.</p>
+          <div class="shortcut-grid" id="customShortcutsList">
+            <!-- Custom shortcuts will be populated here -->
+          </div>
+          <button class="add-custom-btn" onclick="openCustomShortcutModal()">
+            <span class="add-icon">➕</span>
+            Add Custom Shortcut
+          </button>
         </div>
       </div>
-      
 
       <div id="drivers" class="section">
         <h2>Driver Tools</h2>
@@ -129,6 +249,75 @@
       </div>
     </div>
   </div>
+
+  <!-- Custom Shortcut Modal -->
+  <div id="customShortcutModal" class="modal-overlay" style="display: none;">
+    <div class="modal-content custom-shortcut-modal">
+      <div class="modal-header">
+        <h3 class="modal-title">Create Custom Shortcut</h3>
+        <button class="modal-close" onclick="closeCustomShortcutModal()">✕</button>
+      </div>
+      
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="shortcutName">Shortcut Name:</label>
+          <input type="text" id="shortcutName" placeholder="Enter shortcut name" maxlength="25">
+        </div>
+        
+        <div class="form-group">
+          <label for="shortcutIcon">Icon:</label>
+          <div class="icon-selector">
+            <button type="button" id="selectedIcon" class="icon-display" onclick="openEmojiPicker()">
+              <span id="iconPreview">📁</span>
+            </button>
+            <span class="icon-hint">Click to choose an emoji</span>
+          </div>
+        </div>
+        
+        <div class="form-group">
+          <label for="shortcutPath">What to open:</label>
+          <input type="text" id="shortcutPath" placeholder="File path, folder path, or URL">
+          <div class="path-examples">
+            <small>Examples:</small>
+            <div class="example-item" onclick="setExamplePath('C:\\\\Program Files\\\\Notepad++\\\\notepad++.exe')">📝 Notepad++</div>
+            <div class="example-item" onclick="setExamplePath('https://google.com')">🌐 Website</div>
+            <div class="example-item" onclick="setExamplePath('C:\\\\Users\\\\%USERNAME%\\\\Pictures')">🖼️ Pictures folder</div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="modal-actions">
+        <button class="modal-button cancel" onclick="closeCustomShortcutModal()">Cancel</button>
+        <button class="modal-button primary" onclick="saveCustomShortcut()">Save Shortcut</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Emoji Picker Modal -->
+  <div id="emojiPickerModal" class="modal-overlay" style="display: none;">
+    <div class="modal-content emoji-picker-modal">
+      <div class="modal-header">
+        <h3 class="modal-title">Choose an Emoji</h3>
+        <button class="modal-close" onclick="closeEmojiPicker()">✕</button>
+      </div>
+      
+      <div class="emoji-categories">
+        <button class="emoji-category active" data-category="smileys" onclick="switchEmojiCategory('smileys')">😀</button>
+        <button class="emoji-category" data-category="people" onclick="switchEmojiCategory('people')">👤</button>
+        <button class="emoji-category" data-category="animals" onclick="switchEmojiCategory('animals')">🐶</button>
+        <button class="emoji-category" data-category="food" onclick="switchEmojiCategory('food')">🍎</button>
+        <button class="emoji-category" data-category="activities" onclick="switchEmojiCategory('activities')">⚽</button>
+        <button class="emoji-category" data-category="travel" onclick="switchEmojiCategory('travel')">🚗</button>
+        <button class="emoji-category" data-category="objects" onclick="switchEmojiCategory('objects')">💡</button>
+        <button class="emoji-category" data-category="symbols" onclick="switchEmojiCategory('symbols')">❤️</button>
+      </div>
+      
+      <div class="emoji-grid" id="emojiGrid">
+        <!-- Emojis will be populated here -->
+      </div>
+    </div>
+  </div>
+
   <script src="renderer.js"></script>
 </body>
 </html>

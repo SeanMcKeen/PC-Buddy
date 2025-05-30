@@ -6,6 +6,8 @@ const sudo = require('sudo-prompt');
 const { spawn, exec } = require('child_process');
 const os = require('os');
 
+// Sudo options for elevated commands
+const options = { name: 'PC Buddy' };
 
 // Log to AppData/Roaming/PC Buddy/updater.log
 const logFile = path.join(app.getPath('userData'), 'updater.log');
@@ -68,6 +70,14 @@ ipcMain.on('start-update', () => {
 
 app.whenReady().then(createWindow);
 
+// Helper function to get script path based on packaging
+function getScriptPath(scriptName) {
+  return app.isPackaged
+    ? path.join(process.resourcesPath, 'assets', scriptName)
+    : path.join(__dirname, '..', 'assets', scriptName);
+}
+
+// System repair handler
 ipcMain.handle('run-sfc-and-dism', async () => {
   return new Promise((resolve) => {
     sudo.exec('sfc /scannow', options, (sfcErr, sfcOut, sfcErrOut) => {
@@ -94,6 +104,7 @@ ipcMain.handle('run-sfc-and-dism', async () => {
   });
 });
 
+// Disk cleanup handler
 ipcMain.handle('run-disk-cleanup', async () => {
   return new Promise((resolve) => {
     sudo.exec('cleanmgr /sagerun:1', options, (err) => {
@@ -106,6 +117,7 @@ ipcMain.handle('run-disk-cleanup', async () => {
   });
 });
 
+// Normalize startup items for consistent structure
 function normalizeStartupItems(items) {
   return items.map((item, i) => {
     const fallbackCommand = item.Command && item.Command.trim() ? item.Command : `${item.Name}.exe`;
@@ -119,12 +131,10 @@ function normalizeStartupItems(items) {
   });
 }
 
+// Fetch startup programs
 function fetchStartupPrograms() {
   return new Promise((resolve, reject) => {
-    const scriptPath = app.isPackaged
-      ? path.join(process.resourcesPath, 'assets', 'getStartupPrograms.ps1')
-      : path.join(__dirname, '..', 'assets', 'getStartupPrograms.ps1');
-
+    const scriptPath = getScriptPath('getStartupPrograms.ps1');
     const tempJsonPath = path.join(os.tmpdir(), 'startup_programs.json');
 
     log('[Debug] Looking for script at:', scriptPath);
@@ -141,16 +151,15 @@ function fetchStartupPrograms() {
 
     ps.on('close', (code) => {
       log('[Debug] PowerShell exit code:', code);
-      log('[Debug] Raw PS error output on exit:', stderr);
+      if (stderr) log('[Debug] PowerShell stderr:', stderr);
 
       if (code !== 0) return reject(new Error(`PowerShell script failed: ${stderr}`));
 
       try {
         const raw = fs.readFileSync(tempJsonPath, 'utf8').replace(/^\uFEFF/, '');
         const data = JSON.parse(raw);
-
         const normalized = normalizeStartupItems(data);
-        log('[Debug] Normalized startup items:', JSON.stringify(normalized, null, 2));
+        log('[Debug] Normalized startup items count:', normalized.length);
         resolve(normalized);
       } catch (err) {
         reject(new Error(`Failed to parse JSON from file: ${err.message}`));
@@ -159,6 +168,7 @@ function fetchStartupPrograms() {
   });
 }
 
+// IPC handlers
 ipcMain.handle('get-startup-programs', async () => {
   const list = await fetchStartupPrograms();
   return list.sort((a, b) => a.priority - b.priority);
@@ -169,10 +179,7 @@ ipcMain.handle('toggle-startup-program', async (event, programName, enable) => {
   const item = list.find(p => p.Name.toLowerCase() === programName.toLowerCase());
   if (!item) throw new Error(`Startup item '${programName}' not found`);
 
-  const scriptPath = app.isPackaged
-    ? path.join(process.resourcesPath, 'assets', 'toggleStartup.ps1')
-    : path.join(__dirname, '..', 'assets', 'toggleStartup.ps1');
-
+  const scriptPath = getScriptPath('toggleStartup.ps1');
   const command = `powershell -NoProfile -ExecutionPolicy Bypass -File "${scriptPath}" -Name "${item.RegistryName}" -Source "${item.Source}" -Enable ${enable ? '1' : '0'}`;
 
   return new Promise((resolve, reject) => {
@@ -192,35 +199,28 @@ ipcMain.on('open-task-manager', () => {
 ipcMain.handle('clean-drive', async (event, driveLetter = 'C') => {
   return new Promise((resolve) => {
     const letter = driveLetter.toUpperCase().replace(':', '');
-    const scriptPath = app.isPackaged
-      ? path.join(process.resourcesPath, 'assets', 'deepClean.ps1')
-      : path.join(__dirname, '..', 'assets', 'deepClean.ps1'); 
-
+    const scriptPath = getScriptPath('deepClean.ps1');
     const command = `powershell -ExecutionPolicy Bypass -NoProfile -File "${scriptPath}" -DriveLetter ${letter}`;
 
     exec(command, { maxBuffer: 1024 * 1024 }, (error, stdout, stderr) => {
       if (error) {
-        console.error('[Deep Clean Error]', error);
+        log('[Deep Clean Error]', error);
         return resolve(`Cleanup failed for ${letter}:.`);
       }
-      console.log('[Deep Clean Output]', stdout);
+      log('[Deep Clean Output]', stdout);
       resolve(`Cleanup completed for ${letter}:.`);
     });
   });
 });
 
-
 ipcMain.handle('get-disk-usage', async () => {
   return new Promise((resolve, reject) => {
-    const scriptPath = app.isPackaged
-      ? path.join(process.resourcesPath, 'assets', 'getDiskUsage.ps1')
-      : path.join(__dirname, '..', 'assets', 'getDiskUsage.ps1');
-
+    const scriptPath = getScriptPath('getDiskUsage.ps1');
     const command = `powershell -NoProfile -ExecutionPolicy Bypass -File "${scriptPath}"`;
 
     exec(command, (error, stdout, stderr) => {
       if (error) {
-        console.error('[get-disk-usage] PowerShell exec error:', error);
+        log('[get-disk-usage] PowerShell exec error:', error);
         return reject(error);
       }
 
@@ -228,8 +228,8 @@ ipcMain.handle('get-disk-usage', async () => {
         const data = JSON.parse(stdout);
         resolve(data);
       } catch (parseError) {
-        console.error('[get-disk-usage] JSON parse error:', parseError);
-        console.error('[stdout]', stdout);
+        log('[get-disk-usage] JSON parse error:', parseError);
+        log('[stdout]', stdout);
         reject(parseError);
       }
     });

@@ -7,59 +7,120 @@ const toolActions = {
   systemRepair: () => window.electronAPI.runSystemRepair()
 };
 
-// Tool Button Click Handling
-document.querySelectorAll('.tool-btn').forEach(button => {
-  button.addEventListener('click', async () => {
-    const card = button.closest('.tool-card');
-    const loadingEl = card.querySelector('.loadingMessage');
-    const resultEl = card.querySelector('.toolResult');
-    const statusText = card.querySelector('.statusText');
+// Helper function to handle tool button loading states
+function handleToolButtonAction(button, action) {
+  const card = button.closest('.tool-card');
+  const loadingEl = card.querySelector('.loadingMessage');
+  const resultEl = card.querySelector('.toolResult');
+  const statusText = card.querySelector('.statusText');
 
-    resultEl.classList.remove('success', 'error');
-    resultEl.textContent = '';
-    loadingEl.style.display = 'block';
+  resultEl.classList.remove('success', 'error');
+  resultEl.textContent = '';
+  loadingEl.style.display = 'block';
 
-    let dotCount = 0;
-    const baseText = button.innerText.includes('Repair') ? 'Repairing System' : 'Cleaning Disk';
-    statusText.textContent = baseText;
+  let dotCount = 0;
+  const baseText = button.innerText.includes('Repair') ? 'Repairing System' : 'Cleaning Disk';
+  statusText.textContent = baseText;
 
-    const statusInterval = setInterval(() => {
-      dotCount = (dotCount + 1) % 4;
-      statusText.textContent = baseText + '.'.repeat(dotCount);
-    }, 500);
+  const statusInterval = setInterval(() => {
+    dotCount = (dotCount + 1) % 4;
+    statusText.textContent = baseText + '.'.repeat(dotCount);
+  }, 500);
 
-    try {
-      const result = await toolActions[button.dataset.action]();
-      resultEl.classList.add('success');
-      resultEl.textContent = result;
-    } catch (err) {
-      resultEl.classList.add('error');
-      resultEl.textContent = 'Error: ' + err.message;
-    } finally {
-      clearInterval(statusInterval);
-      loadingEl.style.display = 'none';
-      statusText.textContent = '';
-      setTimeout(() => {
-        resultEl.textContent = '';
-        resultEl.classList.remove('success', 'error');
-      }, 5000);
-    }
+  return action().then(result => {
+    resultEl.classList.add('success');
+    resultEl.textContent = result;
+  }).catch(err => {
+    resultEl.classList.add('error');
+    resultEl.textContent = 'Error: ' + err.message;
+  }).finally(() => {
+    clearInterval(statusInterval);
+    loadingEl.style.display = 'none';
+    statusText.textContent = '';
+    setTimeout(() => {
+      resultEl.textContent = '';
+      resultEl.classList.remove('success', 'error');
+    }, 5000);
   });
-});
+}
 
-
+// Special exe name handling for known applications
 function getExeNameFallback(name, command) {
-  // Special handling for Discord and similar known launchers
-  if (/Discord\.exe/i.test(command)) return 'Discord.exe';
-  if (/Steam\.exe/i.test(command)) return 'Steam.exe';
-  if (/EpicGamesLauncher\.exe/i.test(command)) return 'EpicGamesLauncher.exe';
-  if (/Notion\.exe/i.test(command)) return 'Notion.exe';
-  if (/Opera\.exe/i.test(command)) return 'Opera GX.exe';
+  const knownApps = {
+    'Discord.exe': 'Discord.exe',
+    'Steam.exe': 'Steam.exe',
+    'EpicGamesLauncher.exe': 'EpicGamesLauncher.exe',
+    'Notion.exe': 'Notion.exe',
+    'Opera.exe': 'Opera GX.exe'
+  };
+  
+  for (const [pattern, displayName] of Object.entries(knownApps)) {
+    if (new RegExp(pattern, 'i').test(command)) return displayName;
+  }
   return name;
+}
+
+// Utility functions
+function extractCommandPath(command) {
+  if (!command) return 'Unknown';
+  const match = command.match(/^"?([^"]+\.exe)/i);
+  return match ? match[1] : command;
+}
+
+function extractExeName(commandLine, fallbackName = 'Unknown') {
+  if (!commandLine || !commandLine.trim()) return fallbackName;
+
+  // Try to extract the real target from "--processStart"
+  const processStartMatch = commandLine.match(/--processStart(?:AndWait)?\s+([a-zA-Z0-9_.-]+\.exe)/i);
+  if (processStartMatch) return processStartMatch[1];
+
+  // Fallback: match first .exe or .lnk in the command string
+  const match = commandLine.match(/(?:^|\\)([a-zA-Z0-9 _.-]+\.(exe|lnk))\b/i);
+  if (!match) return fallbackName;
+
+  let name = match[1];
+  if (name.toLowerCase().endsWith('.lnk')) {
+    name = name.slice(0, -4); // strip ".lnk"
+  }
+
+  return name.trim();
 }
 
 window.addEventListener('DOMContentLoaded', async () => {
   console.log('[renderer.js] DOM fully loaded');
+
+  // -------------------------
+  // Loading Screen Management
+  // -------------------------
+  const loadingScreen = document.getElementById('loadingScreen');
+  const loadingText = document.querySelector('.loading-text');
+  const progressDots = document.querySelectorAll('.progress-dots .dot');
+  
+  let currentDot = 0;
+  const updateLoadingProgress = (text) => {
+    loadingText.textContent = text;
+    
+    // Reset all dots
+    progressDots.forEach(dot => dot.classList.remove('active'));
+    
+    // Activate current dot
+    if (currentDot < progressDots.length) {
+      progressDots[currentDot].classList.add('active');
+      currentDot++;
+    }
+  };
+
+  // -------------------------
+  // Tool Button Click Handling (consolidated)
+  // -------------------------
+  document.querySelectorAll('.tool-btn').forEach(button => {
+    button.addEventListener('click', async () => {
+      const action = toolActions[button.dataset.action];
+      if (action) {
+        await handleToolButtonAction(button, action);
+      }
+    });
+  });
 
   // -------------------------
   // Sidebar & Section Switching
@@ -68,17 +129,82 @@ window.addEventListener('DOMContentLoaded', async () => {
   const sections = document.querySelectorAll('.section');
 
   function switchSection(sectionId) {
+    // Prevent multiple rapid section switches
+    if (window.switchingSections) return;
+    window.switchingSections = true;
+
+    // Disable masonry animations during section switch
+    masonryInstances.forEach(masonry => {
+      masonry.container.classList.add('switching-sections');
+    });
+
+    // Hide all sections with fade-out
+    sections.forEach(section => {
+      section.style.opacity = '0';
+      section.style.transform = 'translateY(10px)';
+    });
+
+    // Update sidebar immediately
     sidebarItems.forEach(item => {
       item.classList.toggle('active', item.dataset.section === sectionId);
     });
-    sections.forEach(section => {
-      section.classList.toggle('active', section.id === sectionId);
-    });
-    
-    // Refresh masonry layout after section switch
+
+    // Wait for fade-out to complete, then switch sections
     setTimeout(() => {
-      initMasonryLayout();
-    }, 100);
+      // Hide old sections
+      sections.forEach(section => {
+        section.classList.remove('active');
+        section.style.display = 'none';
+      });
+
+      const targetSection = document.getElementById(sectionId);
+      if (targetSection) {
+        // Show new section
+        targetSection.style.display = 'block';
+        targetSection.classList.add('active');
+        
+        // Force a reflow to ensure display change is applied
+        targetSection.offsetHeight;
+        
+        // Initialize masonry for new section after it's visible
+        setTimeout(() => {
+          // Destroy old masonry instances that are no longer active
+          masonryInstances.forEach((masonry, section) => {
+            if (!section.classList.contains('active')) {
+              masonry.destroy();
+              masonryInstances.delete(section);
+            }
+          });
+          
+          // Initialize masonry for active section
+          initMasonryLayout();
+          
+          // Fade in the new section
+          setTimeout(() => {
+            targetSection.style.opacity = '1';
+            targetSection.style.transform = 'translateY(0)';
+            
+            // Re-enable animations after layout is complete
+            setTimeout(() => {
+              masonryInstances.forEach(masonry => {
+                masonry.container.classList.remove('switching-sections');
+              });
+              
+              // Reset all section styles
+              sections.forEach(section => {
+                section.style.display = '';
+                section.style.opacity = '';
+                section.style.transform = '';
+              });
+              
+              window.switchingSections = false;
+            }, 200); // Wait for fade-in to complete
+          }, 100); // Small delay for masonry to initialize
+        }, 50); // Wait for section to be visible
+      } else {
+        window.switchingSections = false;
+      }
+    }, 200); // Wait for fade-out animation
   }
 
   sidebarItems.forEach(item => {
@@ -93,6 +219,15 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   document.getElementById('toggleSidebar')?.addEventListener('click', () => {
     document.getElementById('sidebar').classList.toggle('collapsed');
+    
+    // Refresh masonry layout after sidebar toggle with slight delay
+    setTimeout(() => {
+      masonryInstances.forEach(masonry => {
+        if (masonry.container.classList.contains('active')) {
+          masonry.handleResize();
+        }
+      });
+    }, 350); // Wait for sidebar transition to complete
   });
 
   // -------------------------
@@ -155,6 +290,8 @@ window.addEventListener('DOMContentLoaded', async () => {
   // -------------------------
   // System Info Section
   // -------------------------
+  updateLoadingProgress('Loading system information...');
+  
   const info = window.systemInfoAPI.getSystemInfo?.();
   const list = document.getElementById('systemInfoList');
   if (info && list) {
@@ -167,148 +304,104 @@ window.addEventListener('DOMContentLoaded', async () => {
   }
 
   // -------------------------
-  // Tool Buttons (Repair & Cleanup)
-  // -------------------------
-
-  document.querySelectorAll('.tool-btn').forEach(button => {
-    button.addEventListener('click', async () => {
-      const card = button.closest('.tool-card');
-      const loadingEl = card.querySelector('.loadingMessage');
-      const resultEl = card.querySelector('.toolResult');
-      const statusText = card.querySelector('.statusText');
-
-      resultEl.classList.remove('success', 'error');
-      resultEl.textContent = '';
-      loadingEl.style.display = 'block';
-
-      let dotCount = 0;
-      const baseText = button.innerText.includes('Repair') ? 'Repairing System' : 'Cleaning Disk';
-      statusText.textContent = baseText;
-
-      const statusInterval = setInterval(() => {
-        dotCount = (dotCount + 1) % 4;
-        statusText.textContent = baseText + '.'.repeat(dotCount);
-      }, 500);
-
-      try {
-        const result = await toolActions[button.dataset.action]();
-        resultEl.classList.add('success');
-        resultEl.textContent = result;
-      } catch (err) {
-        resultEl.classList.add('error');
-        resultEl.textContent = 'Error: ' + err.message;
-      } finally {
-        clearInterval(statusInterval);
-        loadingEl.style.display = 'none';
-        statusText.textContent = '';
-        setTimeout(() => {
-          resultEl.textContent = '';
-          resultEl.classList.remove('success', 'error');
-        }, 5000);
-      }
-    });
-  });
-
-  // -------------------------
   // Startup Section
   // -------------------------
+  updateLoadingProgress('Loading startup programs...');
+  
   const listEl = document.getElementById('startupList');
   const entries = await window.startupAPI.getStartupPrograms();
 
   if (!entries.length) {
     listEl.textContent = 'No startup entries found.';
-    return;
+  } else {
+    entries.forEach(program => {
+      const name = program.name || program.Name || 'Unknown';
+      const command = program.command || program.Command || 'Unknown';
+      const safety = (program.safety || program.Safety || 'unknown').toLowerCase();
+      const isEnabled = (program.status || program.Status || '').toLowerCase() === 'enabled';
+
+      const container = document.createElement('div');
+      container.classList.add('startup-item');
+
+      const exeName = extractExeName(command, getExeNameFallback(name, command));
+
+      const label = document.createElement('span');
+      label.className = 'startup-label';
+      label.textContent = exeName;
+      label.title = extractCommandPath(command);
+
+      const badge = document.createElement('span');
+      badge.className = `safety-badge ${safety}`;
+      
+      const safetyConfig = {
+        safe: { text: 'Safe', title: 'Safe to disable' },
+        caution: { text: 'Caution', title: 'May impact some functionality' },
+        danger: { text: 'Danger', title: 'Critical system component' },
+        unknown: { text: 'Unknown', title: 'Unknown impact' }
+      };
+      
+      const config = safetyConfig[safety] || safetyConfig.unknown;
+      badge.textContent = config.text;
+      badge.title = config.title;
+
+      const toggleContainer = document.createElement('label');
+      toggleContainer.className = 'toggle-switch';
+
+      const toggleInput = document.createElement('input');
+      toggleInput.type = 'checkbox';
+      toggleInput.checked = isEnabled;
+
+      const toggleSlider = document.createElement('span');
+      toggleSlider.className = 'toggle-slider';
+
+      toggleContainer.append(toggleInput, toggleSlider);
+
+      toggleInput.onchange = async (e) => {
+        if (safety === 'danger') {
+          e.preventDefault();
+          toggleInput.checked = !toggleInput.checked;
+
+          const confirmed = await showModal({
+            type: 'warning',
+            title: 'Warning',
+            message: "Disabling this could harm system stability.\nContinue?",
+            confirmText: 'Yes, I understand'
+          });
+
+          if (!confirmed) return;
+          toggleInput.checked = !toggleInput.checked;
+        }
+
+        toggleInput.disabled = true;
+        toggleSlider.classList.add('disabled');
+
+        try {
+          const result = await window.startupAPI.toggleStartup(name, toggleInput.checked);
+          console.log(result);
+        } catch (err) {
+          console.error('Toggle failed:', err);
+          toggleInput.checked = !toggleInput.checked;
+          await showModal({
+            type: 'error',
+            title: 'Operation Failed',
+            message: 'Try running the app as admin.',
+            confirmText: 'OK',
+            showCancel: false
+          });
+        } finally {
+          toggleInput.disabled = false;
+          toggleSlider.classList.remove('disabled');
+        }
+      };
+
+      const controls = document.createElement('div');
+      controls.className = 'startup-controls-horizontal';
+      controls.append(badge, toggleContainer);
+
+      container.append(label, controls);
+      listEl.appendChild(container);
+    });
   }
-
-  entries.forEach(program => {
-    const name = program.name || program.Name || 'Unknown';
-    const command = program.command || program.Command || 'Unknown';
-    const safety = (program.safety || program.Safety || 'unknown').toLowerCase();
-    const isEnabled = (program.status || program.Status || '').toLowerCase() === 'enabled';
-
-    const container = document.createElement('div');
-    container.classList.add('startup-item');
-
-    const exeName = extractExeName(command, getExeNameFallback(name, command));
-
-    const label = document.createElement('span');
-    label.className = 'startup-label';
-    label.textContent = exeName;
-    label.title = extractCommandPath(command);
-
-    const badge = document.createElement('span');
-    badge.className = `safety-badge ${safety}`;
-    badge.textContent =
-      safety === 'safe' ? 'Safe' :
-      safety === 'caution' ? 'Caution' :
-      safety === 'danger' ? 'Danger' : 'Unknown';
-
-    badge.title =
-      safety === 'safe'
-        ? 'Safe to disable'
-        : safety === 'caution'
-        ? 'May impact some functionality'
-        : safety === 'danger'
-        ? 'Critical system component'
-        : 'Unknown impact';
-
-    const toggleContainer = document.createElement('label');
-    toggleContainer.className = 'toggle-switch';
-
-    const toggleInput = document.createElement('input');
-    toggleInput.type = 'checkbox';
-    toggleInput.checked = isEnabled;
-
-    const toggleSlider = document.createElement('span');
-    toggleSlider.className = 'toggle-slider';
-
-    toggleContainer.append(toggleInput, toggleSlider);
-
-    toggleInput.onchange = async (e) => {
-      if (safety === 'danger') {
-        e.preventDefault();
-        toggleInput.checked = !toggleInput.checked;
-
-        const confirmed = await showModal({
-          type: 'warning',
-          title: 'Warning',
-          message: "Disabling this could harm system stability.\nContinue?",
-          confirmText: 'Yes, I understand'
-        });
-
-        if (!confirmed) return;
-        toggleInput.checked = !toggleInput.checked;
-      }
-
-      toggleInput.disabled = true;
-      toggleSlider.classList.add('disabled');
-
-      try {
-        const result = await window.startupAPI.toggleStartup(name, toggleInput.checked);
-        console.log(result);
-      } catch (err) {
-        console.error('Toggle failed:', err);
-        toggleInput.checked = !toggleInput.checked;
-        await showModal({
-          type: 'error',
-          title: 'Operation Failed',
-          message: 'Try running the app as admin.',
-          confirmText: 'OK',
-          showCancel: false
-        });
-      } finally {
-        toggleInput.disabled = false;
-        toggleSlider.classList.remove('disabled');
-      }
-    };
-
-    const controls = document.createElement('div');
-    controls.className = 'startup-controls-horizontal';
-    controls.append(badge, toggleContainer);
-
-    container.append(label, controls);
-    listEl.appendChild(container);
-  });
 
   const taskBtn = document.getElementById('openTaskManagerBtn');
   taskBtn?.addEventListener('click', () => {
@@ -316,10 +409,31 @@ window.addEventListener('DOMContentLoaded', async () => {
   });
 
   // Initialize masonry layout after all content is loaded
+  updateLoadingProgress('Finalizing interface...');
+  
   setTimeout(() => {
     initMasonryLayout();
-  }, 200);
+    
+    // Hide loading screen after everything is ready - extended duration for better UX
+    setTimeout(() => {
+      loadingScreen.classList.add('hidden');
+    }, 1500); // Extended from 500ms to 1500ms
+  }, 500); // Extended from 200ms to 500ms
+
+  // Handle window resize for masonry layout
+  window.addEventListener('resize', () => {
+    clearTimeout(window.masonryResizeTimeout);
+    window.masonryResizeTimeout = setTimeout(() => {
+      masonryInstances.forEach(masonry => {
+        masonry.handleResize();
+      });
+    }, 150);
+  });
 });
+
+// -------------------------
+// Drive Selection and Cleanup
+// -------------------------
 
 document.getElementById('chooseDriveBtn')?.addEventListener('click', async () => {
   const result = await promptDriveSelection();
@@ -361,31 +475,9 @@ document.getElementById('chooseDriveBtn')?.addEventListener('click', async () =>
   }
 });
 
-function extractCommandPath(command) {
-  if (!command) return 'Unknown';
-  const match = command.match(/^"?([^"]+\.exe)/i);
-  return match ? match[1] : command;
-}
-
-
-function extractExeName(commandLine, fallbackName = 'Unknown') {
-  if (!commandLine || !commandLine.trim()) return fallbackName;
-
-  // Try to extract the real target from "--processStart"
-  const processStartMatch = commandLine.match(/--processStart(?:AndWait)?\s+([a-zA-Z0-9_.-]+\.exe)/i);
-  if (processStartMatch) return processStartMatch[1];
-
-  // Fallback: match first .exe or .lnk in the command string
-  const match = commandLine.match(/(?:^|\\)([a-zA-Z0-9 _.-]+\.(exe|lnk))\b/i);
-  if (!match) return fallbackName;
-
-  let name = match[1];
-  if (name.toLowerCase().endsWith('.lnk')) {
-    name = name.slice(0, -4); // strip ".lnk"
-  }
-
-  return name.trim();
-}
+// -------------------------
+// Modal System
+// -------------------------
 
 function showModal({ type = 'warning', title, message, confirmText = 'OK', showCancel = true }) {
   return new Promise((resolve) => {
@@ -567,6 +659,10 @@ async function promptDriveSelection() {
   });
 }
 
+// -------------------------
+// Masonry Layout System
+// -------------------------
+
 // True Pinterest-style masonry layout
 class MasonryLayout {
   constructor(container, options = {}) {
@@ -575,7 +671,11 @@ class MasonryLayout {
     this.cardWidth = this.getCardWidth();
     this.columns = [];
     this.cards = [];
+    this.isResizing = false;
+    this.isInitializing = true;
     this.resizeObserver = null;
+    this.resizeRAF = null;
+    this.layoutRAF = null;
     
     this.init();
   }
@@ -595,71 +695,56 @@ class MasonryLayout {
   }
   
   init() {
-    this.container.classList.add('js-masonry');
+    this.container.classList.add('js-masonry', 'loading');
     this.cards = Array.from(this.container.querySelectorAll('.tool-card'));
     
-    // Set card widths and hide initially
+    // Set initial card properties
     this.cardWidth = this.getCardWidth();
     this.cards.forEach(card => {
       card.style.width = `${this.cardWidth}px`;
-      card.style.opacity = '0';
-      card.style.transform = 'translate3d(0, 0, 0)';
+      card.style.opacity = '1';
     });
     
-    this.calculateLayout();
-    this.setupResizeObserver();
+    // Calculate initial layout without animation
+    this.calculateLayout(false);
     
-    // Handle window resize
-    window.addEventListener('resize', () => {
-      clearTimeout(this.resizeTimeout);
-      this.resizeTimeout = setTimeout(() => {
-        this.handleResize();
-      }, 150);
+    // Enable animations after initial positioning
+    requestAnimationFrame(() => {
+      this.container.classList.remove('loading');
+      this.isInitializing = false;
+      this.setupResizeObserver();
+      this.setupWindowResize();
     });
   }
   
-  calculateLayout() {
+  calculateLayout(animate = true) {
     if (this.cards.length === 0) return;
     
-    const containerWidth = this.container.offsetWidth - 40;
-    const columnsCount = Math.floor((containerWidth + this.gap) / (this.cardWidth + this.gap));
+    // Cancel any pending layout updates
+    if (this.layoutRAF) {
+      cancelAnimationFrame(this.layoutRAF);
+    }
     
-    // Initialize column heights
-    this.columns = Array(Math.max(1, columnsCount)).fill(0);
-    
-    // Batch all positioning to avoid visual glitches
-    this.batchPositionCards();
-  }
-  
-  batchPositionCards() {
-    // First, measure all card heights without positioning
-    const cardHeights = this.cards.map(card => {
-      // Temporarily position off-screen to measure
-      card.style.transform = 'translate3d(-9999px, 0, 0)';
-      card.style.opacity = '1';
-      const height = card.offsetHeight;
-      card.style.opacity = '0';
-      return height;
-    });
-    
-    // Advanced gap-filling algorithm
-    const positions = this.calculateOptimalPositions(cardHeights);
-    
-    // Apply all positions simultaneously
-    requestAnimationFrame(() => {
-      this.cards.forEach((card, index) => {
-        const { x, y } = positions[index];
-        card.style.transform = `translate3d(${x}px, ${y}px, 0)`;
-        card.style.opacity = '1';
-      });
+    this.layoutRAF = requestAnimationFrame(() => {
+      const containerWidth = this.container.offsetWidth - 40;
+      const columnsCount = Math.floor((containerWidth + this.gap) / (this.cardWidth + this.gap));
+      
+      // Initialize column heights
+      this.columns = Array(Math.max(1, columnsCount)).fill(0);
+      
+      // Calculate positions
+      const positions = this.calculateOptimalPositions();
+      
+      // Apply positions smoothly
+      this.applyPositions(positions, animate);
       
       // Set final container height
-      const maxHeight = Math.max(...this.columns);
-      this.container.style.height = `${maxHeight + 40}px`;
+      const maxHeight = Math.max(...this.columns) + 40;
+      this.container.style.height = `${maxHeight}px`;
     });
   }
   
-  calculateOptimalPositions(cardHeights) {
+  calculateOptimalPositions() {
     const containerWidth = this.container.offsetWidth - 40;
     const columnsCount = Math.floor((containerWidth + this.gap) / (this.cardWidth + this.gap));
     const positions = [];
@@ -667,8 +752,9 @@ class MasonryLayout {
     // Reset columns
     this.columns = Array(Math.max(1, columnsCount)).fill(0);
     
-    // Position cards in order, finding the shortest column each time
-    cardHeights.forEach((height, index) => {
+    // Get card heights efficiently
+    this.cards.forEach((card, index) => {
+      const height = card.offsetHeight;
       const shortestColumnIndex = this.columns.indexOf(Math.min(...this.columns));
       
       const x = shortestColumnIndex * (this.cardWidth + this.gap);
@@ -681,33 +767,97 @@ class MasonryLayout {
     return positions;
   }
   
-  findBestPosition(cardHeight, columnsCount) {
-    // Simplified - just use shortest column
-    const shortestColumnIndex = this.columns.indexOf(Math.min(...this.columns));
-    const x = shortestColumnIndex * (this.cardWidth + this.gap);
-    const y = this.columns[shortestColumnIndex];
-    return { x, y };
+  applyPositions(positions, animate = true) {
+    this.cards.forEach((card, index) => {
+      const { x, y } = positions[index];
+      
+      // Use transform3d for hardware acceleration
+      const transform = `translate3d(${x}px, ${y}px, 0)`;
+      
+      // Check if we're switching sections
+      const isSwitchingSections = this.container.classList.contains('switching-sections');
+      
+      if (!animate || this.isInitializing || isSwitchingSections) {
+        // Instant positioning
+        card.style.transition = 'none';
+        card.style.transform = transform;
+        
+        // Re-enable transitions after positioning (only if not switching sections)
+        if (!isSwitchingSections) {
+          requestAnimationFrame(() => {
+            card.style.transition = '';
+          });
+        }
+      } else {
+        // Smooth transition
+        card.style.transform = transform;
+      }
+    });
   }
   
   handleResize() {
-    // Hide cards during resize to prevent glitches
-    this.cards.forEach(card => {
-      card.style.opacity = '0';
-    });
+    // Prevent multiple simultaneous resize operations
+    if (this.isResizing) return;
     
-    const newCardWidth = this.getCardWidth();
-    if (newCardWidth !== this.cardWidth) {
-      this.cardWidth = newCardWidth;
-      this.cards.forEach(card => {
-        card.style.width = `${this.cardWidth}px`;
-      });
+    // Cancel any pending resize operations
+    if (this.resizeRAF) {
+      cancelAnimationFrame(this.resizeRAF);
     }
     
-    // Debounce the layout calculation
-    clearTimeout(this.layoutTimeout);
-    this.layoutTimeout = setTimeout(() => {
-      this.calculateLayout();
-    }, 100);
+    this.isResizing = true;
+    this.container.classList.add('resizing');
+    
+    this.resizeRAF = requestAnimationFrame(() => {
+      const newCardWidth = this.getCardWidth();
+      const needsWidthUpdate = Math.abs(newCardWidth - this.cardWidth) > 5; // 5px threshold
+      
+      if (needsWidthUpdate) {
+        this.cardWidth = newCardWidth;
+        
+        // Update card widths efficiently
+        this.cards.forEach(card => {
+          card.style.width = `${this.cardWidth}px`;
+        });
+        
+        // Wait a frame for width changes to apply, then recalculate
+        requestAnimationFrame(() => {
+          this.calculateLayout(true);
+          
+          // Clean up resize state
+          setTimeout(() => {
+            this.container.classList.remove('resizing');
+            this.isResizing = false;
+          }, 300); // Match transition duration
+        });
+      } else {
+        // Just recalculate positions without width changes
+        this.calculateLayout(true);
+        
+        setTimeout(() => {
+          this.container.classList.remove('resizing');
+          this.isResizing = false;
+        }, 300);
+      }
+    });
+  }
+  
+  setupWindowResize() {
+    let resizeTimeout;
+    
+    const handleWindowResize = () => {
+      clearTimeout(resizeTimeout);
+      
+      resizeTimeout = setTimeout(() => {
+        if (!this.isResizing) {
+          this.handleResize();
+        }
+      }, 100); // Debounce window resize
+    };
+    
+    window.addEventListener('resize', handleWindowResize);
+    
+    // Store reference for cleanup
+    this.windowResizeHandler = handleWindowResize;
   }
   
   setupResizeObserver() {
@@ -715,38 +865,67 @@ class MasonryLayout {
       this.resizeObserver.disconnect();
     }
     
-    this.resizeObserver = new ResizeObserver(() => {
-      clearTimeout(this.layoutTimeout);
-      this.layoutTimeout = setTimeout(() => {
-        this.calculateLayout();
-      }, 100);
+    this.resizeObserver = new ResizeObserver((entries) => {
+      // Debounce ResizeObserver callbacks
+      clearTimeout(this.observerTimeout);
+      
+      this.observerTimeout = setTimeout(() => {
+        if (!this.isResizing) {
+          this.calculateLayout(true);
+        }
+      }, 50);
     });
     
-    this.cards.forEach(card => {
-      this.resizeObserver.observe(card);
-    });
+    // Observe container for size changes
+    this.resizeObserver.observe(this.container);
   }
   
   refresh() {
     this.cards = Array.from(this.container.querySelectorAll('.tool-card'));
+    
+    // Update card widths
     this.cards.forEach(card => {
       card.style.width = `${this.cardWidth}px`;
     });
+    
     this.setupResizeObserver();
+    
+    // Recalculate layout
     setTimeout(() => {
-      this.calculateLayout();
+      this.calculateLayout(true);
     }, 50);
   }
   
   destroy() {
+    // Clean up event listeners
+    if (this.windowResizeHandler) {
+      window.removeEventListener('resize', this.windowResizeHandler);
+    }
+    
     if (this.resizeObserver) {
       this.resizeObserver.disconnect();
     }
-    this.container.classList.remove('js-masonry');
+    
+    // Cancel any pending animations
+    if (this.resizeRAF) {
+      cancelAnimationFrame(this.resizeRAF);
+    }
+    
+    if (this.layoutRAF) {
+      cancelAnimationFrame(this.layoutRAF);
+    }
+    
+    // Clean up timeouts
+    clearTimeout(this.observerTimeout);
+    
+    // Reset container
+    this.container.classList.remove('js-masonry', 'loading', 'resizing');
+    
+    // Reset cards
     this.cards.forEach(card => {
       card.style.transform = '';
       card.style.width = '';
-      card.style.opacity = '';
+      card.style.transition = '';
     });
   }
 }
@@ -780,9 +959,193 @@ function refreshMasonryLayout() {
 
 document.addEventListener('DOMContentLoaded', initMasonryLayout);
 
-// Developer Console Test Functions for Update Notification
+// -------------------------
+// Custom Shortcuts System
+// -------------------------
+
+// Emoji categories with comprehensive emoji lists
+const emojiCategories = {
+  smileys: ['😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣', '😊', '😇', '🙂', '🙃', '😉', '😌', '😍', '🥰', '😘', '😗', '😙', '😚', '😋', '😛', '😝', '😜', '🤪', '🤨', '🧐', '🤓', '😎', '🤩', '🥳'],
+  people: ['👤', '👥', '👶', '👧', '🧒', '👦', '👩', '🧑', '👨', '👩‍🦱', '👨‍🦱', '👩‍🦰', '👨‍🦰', '👱‍♀️', '👱‍♂️', '👩‍🦳', '👨‍🦳', '👩‍🦲', '👨‍🦲', '🧔', '👵', '🧓', '👴', '👲', '👳‍♀️', '👳‍♂️', '🧕', '👮‍♀️', '👮‍♂️'],
+  animals: ['🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🐯', '🦁', '🐮', '🐷', '🐽', '🐸', '🐵', '🙈', '🙉', '🙊', '🐒', '🐔', '🐧', '🐦', '🐤', '🐣', '🐥', '🦆', '🦅', '🦉', '🦇'],
+  food: ['🍎', '🍊', '🍋', '🍌', '🍉', '🍇', '🍓', '🍈', '🍒', '🍑', '🥭', '🍍', '🥥', '🥝', '🍅', '🍆', '🥑', '🥦', '🥒', '🥬', '🌶️', '🌽', '🥕', '🧄', '🧅', '🥔', '🍠', '🥐', '🥯', '🍞'],
+  activities: ['⚽', '🏀', '🏈', '⚾', '🥎', '🎾', '🏐', '🏉', '🥏', '🎱', '🪀', '🏓', '🏸', '🏒', '🏑', '🥍', '🏏', '🪃', '🥅', '⛳', '🪁', '🏹', '🎣', '🤿', '🥊', '🥋', '🎽', '🛹', '🛷', '⛸️'],
+  travel: ['🚗', '🚕', '🚙', '🚌', '🚎', '🏎️', '🚓', '🚑', '🚒', '🚐', '🛻', '🚚', '🚛', '🚜', '🏍️', '🛵', '🚲', '🛴', '🛺', '🚨', '🚔', '🚍', '🚘', '🚖', '🚡', '🚠', '🚟', '🚃', '🚋', '🚝'],
+  objects: ['💡', '🔦', '🕯️', '🪔', '🧯', '🛢️', '💸', '💵', '💴', '💶', '💷', '💰', '💳', '💎', '⚖️', '🧰', '🔧', '🔨', '⚒️', '🛠️', '⛏️', '🔩', '⚙️', '🧱', '⛓️', '🧲', '🔫', '💣', '🧨', '🪓'],
+  symbols: ['❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎', '💔', '❣️', '💕', '💞', '💓', '💗', '💖', '💘', '💝', '💟', '☮️', '✝️', '☪️', '🕉️', '☸️', '✡️', '🔯', '🕎', '☯️', '☦️', '🛐']
+};
+
+let currentEmojiCategory = 'smileys';
+let editingShortcutId = null;
+
+// Load custom shortcuts from localStorage
+function loadCustomShortcuts() {
+  const shortcuts = JSON.parse(localStorage.getItem('customShortcuts') || '[]');
+  const container = document.getElementById('customShortcutsList');
+  
+  container.innerHTML = '';
+  
+  shortcuts.forEach((shortcut, index) => {
+    const shortcutElement = document.createElement('div');
+    shortcutElement.className = 'shortcut-btn custom-shortcut';
+    shortcutElement.innerHTML = `
+      <span class="shortcut-icon">${shortcut.icon}</span>
+      <span class="shortcut-label">${shortcut.name}</span>
+      <div class="shortcut-actions">
+        <button class="shortcut-action-btn edit" onclick="editCustomShortcut(${index})" title="Edit">✏️</button>
+        <button class="shortcut-action-btn delete" onclick="deleteCustomShortcut(${index})" title="Delete">🗑️</button>
+      </div>
+    `;
+    
+    // Add click handler for opening the shortcut
+    shortcutElement.addEventListener('click', (e) => {
+      if (!e.target.closest('.shortcut-actions')) {
+        openCustomShortcut(shortcut.path);
+      }
+    });
+    
+    container.appendChild(shortcutElement);
+  });
+}
+
+// Custom shortcut modal functions
+function openCustomShortcutModal() {
+  editingShortcutId = null;
+  document.getElementById('shortcutName').value = '';
+  document.getElementById('shortcutPath').value = '';
+  document.getElementById('iconPreview').textContent = '📁';
+  document.getElementById('customShortcutModal').style.display = 'flex';
+}
+
+function closeCustomShortcutModal() {
+  document.getElementById('customShortcutModal').style.display = 'none';
+  editingShortcutId = null;
+}
+
+function openEmojiPicker() {
+  document.getElementById('emojiPickerModal').style.display = 'flex';
+  switchEmojiCategory('smileys');
+}
+
+function closeEmojiPicker() {
+  document.getElementById('emojiPickerModal').style.display = 'none';
+}
+
+function switchEmojiCategory(category) {
+  currentEmojiCategory = category;
+  
+  // Update active category button
+  document.querySelectorAll('.emoji-category').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.category === category);
+  });
+  
+  // Populate emoji grid
+  const grid = document.getElementById('emojiGrid');
+  grid.innerHTML = '';
+  
+  emojiCategories[category].forEach(emoji => {
+    const emojiButton = document.createElement('div');
+    emojiButton.className = 'emoji-item';
+    emojiButton.textContent = emoji;
+    emojiButton.onclick = () => selectEmoji(emoji);
+    grid.appendChild(emojiButton);
+  });
+}
+
+function selectEmoji(emoji) {
+  document.getElementById('iconPreview').textContent = emoji;
+  closeEmojiPicker();
+}
+
+function setExamplePath(path) {
+  document.getElementById('shortcutPath').value = path;
+}
+
+function saveCustomShortcut() {
+  const name = document.getElementById('shortcutName').value.trim();
+  const path = document.getElementById('shortcutPath').value.trim();
+  const icon = document.getElementById('iconPreview').textContent;
+  
+  if (!name || !path) {
+    alert('Please fill in both name and path fields.');
+    return;
+  }
+  
+  const shortcuts = JSON.parse(localStorage.getItem('customShortcuts') || '[]');
+  const shortcut = { name, path, icon };
+  
+  if (editingShortcutId !== null) {
+    shortcuts[editingShortcutId] = shortcut;
+  } else {
+    shortcuts.push(shortcut);
+  }
+  
+  localStorage.setItem('customShortcuts', JSON.stringify(shortcuts));
+  loadCustomShortcuts();
+  closeCustomShortcutModal();
+  
+  // Refresh masonry layout
+  setTimeout(() => {
+    masonryInstances.forEach(masonry => {
+      masonry.refresh();
+    });
+  }, 100);
+}
+
+function editCustomShortcut(index) {
+  const shortcuts = JSON.parse(localStorage.getItem('customShortcuts') || '[]');
+  const shortcut = shortcuts[index];
+  
+  if (shortcut) {
+    editingShortcutId = index;
+    document.getElementById('shortcutName').value = shortcut.name;
+    document.getElementById('shortcutPath').value = shortcut.path;
+    document.getElementById('iconPreview').textContent = shortcut.icon;
+    document.getElementById('customShortcutModal').style.display = 'flex';
+  }
+}
+
+function deleteCustomShortcut(index) {
+  if (confirm('Are you sure you want to delete this shortcut?')) {
+    const shortcuts = JSON.parse(localStorage.getItem('customShortcuts') || '[]');
+    shortcuts.splice(index, 1);
+    localStorage.setItem('customShortcuts', JSON.stringify(shortcuts));
+    loadCustomShortcuts();
+    
+    // Refresh masonry layout
+    setTimeout(() => {
+      masonryInstances.forEach(masonry => {
+        masonry.refresh();
+      });
+    }, 100);
+  }
+}
+
+function openCustomShortcut(path) {
+  console.log('[customShortcut] Opening:', path);
+  
+  // Determine if it's a URL or file path
+  if (path.startsWith('http://') || path.startsWith('https://')) {
+    // Open URL in default browser
+    window.electronAPI && window.electronAPI.openExternal ? 
+      window.electronAPI.openExternal(path) : 
+      window.open(path, '_blank');
+  } else {
+    // Open file/folder with system default
+    window.systemAPI.openPath(path);
+  }
+}
+
+// Initialize custom shortcuts on page load
+document.addEventListener('DOMContentLoaded', () => {
+  loadCustomShortcuts();
+});
+
+// -------------------------
+// Update Notification Test Functions (Development Only)
+// -------------------------
+
 window.testUpdateNotification = {
-  // Show update available
   showAvailable: (version = '2.1.0') => {
     const notification = document.getElementById('update-notification');
     const updateCard = notification?.querySelector('.update-card');
@@ -802,7 +1165,6 @@ window.testUpdateNotification = {
     console.log('✅ Test: Update Available notification shown');
   },
   
-  // Simulate download progress
   downloadProgress: (percent = 0) => {
     const notification = document.getElementById('update-notification');
     const updateCard = notification?.querySelector('.update-card');
@@ -825,7 +1187,6 @@ window.testUpdateNotification = {
     console.log(`⬇️ Test: Download progress ${percent}%`);
   },
   
-  // Simulate download complete
   downloadComplete: () => {
     const notification = document.getElementById('update-notification');
     const updateCard = notification?.querySelector('.update-card');
@@ -844,7 +1205,6 @@ window.testUpdateNotification = {
     console.log('✅ Test: Download complete notification shown');
   },
   
-  // Simulate installing state
   installing: () => {
     const notification = document.getElementById('update-notification');
     const updateCard = notification?.querySelector('.update-card');
@@ -865,14 +1225,12 @@ window.testUpdateNotification = {
     console.log('⚙️ Test: Installing notification shown');
   },
   
-  // Hide notification
   hide: () => {
     const notification = document.getElementById('update-notification');
     notification.style.display = 'none';
     console.log('❌ Test: Notification hidden');
   },
   
-  // Simulate full download sequence
   simulateDownload: async (duration = 3000) => {
     console.log('🚀 Test: Starting download simulation...');
     window.testUpdateNotification.showAvailable();
@@ -891,7 +1249,6 @@ window.testUpdateNotification = {
     console.log('✅ Test: Download simulation complete');
   },
   
-  // Show help in console
   help: () => {
     console.log(`
 🧪 Update Notification Test Commands:
@@ -911,4 +1268,3 @@ Example: testUpdateNotification.simulateDownload()
 
 // Auto-show help on load
 console.log('🧪 Update notification test functions loaded! Type "testUpdateNotification.help()" for commands.');
-
