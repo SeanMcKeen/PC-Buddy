@@ -154,11 +154,34 @@ body {
   overflow-x: hidden;
   overflow-y: auto;
   flex-shrink: 0;
+  /* Hardware acceleration for smooth transitions */
+  transform: translateZ(0);
+  will-change: width, min-width;
+  /* Prevent layout thrashing during transitions */
+  contain: layout style;
 }
 
 #sidebar.collapsed {
   width: 65px;
   min-width: 65px;
+}
+
+/* Prevent layout calculations during sidebar transitions */
+#sidebar.transitioning {
+  pointer-events: none;
+}
+
+#sidebar.transitioning * {
+  transition-duration: 0.3s;
+}
+
+/* Optimize main content during window resize */
+body.window-resizing #mainContent {
+  pointer-events: none;
+}
+
+body.window-resizing .tool-card {
+  transition: none !important;
 }
 
 .sidebar-header {
@@ -313,18 +336,26 @@ body {
   background: var(--bg-primary);
   position: relative;
   box-sizing: border-box;
+  /* Hardware acceleration for smooth transitions */
+  transform: translateZ(0);
+  will-change: width;
+  /* Optimize scrolling performance */
+  scroll-behavior: smooth;
+  /* Prevent layout shift during sidebar transitions */
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .section {
   display: none;
   opacity: 0;
-  transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1), 
-              transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1), 
+              transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   position: absolute;
   left: 20px;
   right: 20px;
   top: 20px;
-  transform: translateY(10px);
+  transform: translateY(10px) translateZ(0);
+  will-change: opacity, transform;
 }
 
 /* True Pinterest-style masonry layout */
@@ -343,6 +374,24 @@ body {
 /* Disable masonry animations during section switching */
 .section.switching-sections .tool-card {
   transition: none !important;
+  will-change: auto;
+}
+
+/* Ensure transitions are restored after switching - force override */
+.section.active.js-masonry:not(.switching-sections) .tool-card {
+  transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1),
+              opacity 0.3s ease,
+              box-shadow 0.2s ease !important;
+  will-change: transform !important;
+}
+
+/* Optimize performance during section switching */
+body.switching-sections * {
+  pointer-events: none;
+}
+
+body.switching-sections .section.active {
+  pointer-events: auto;
 }
 
 /* Enhanced section fade-in animation */
@@ -376,7 +425,7 @@ body {
   flex-direction: column;
   height: fit-content;
   width: 450px; /* Increased from 400px to 450px */
-  transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), 
+  transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), 
               box-shadow 0.2s ease, 
               opacity 0.3s ease;
   position: absolute; /* Allow JavaScript positioning */
@@ -386,11 +435,14 @@ body {
   will-change: transform; /* Optimize for frequent transforms */
   contain: layout style paint; /* Optimize rendering */
   transform: translate3d(0, 0, 0); /* Force hardware acceleration */
+  /* Prevent subpixel rendering issues */
+  backface-visibility: hidden;
+  perspective: 1000px;
 }
 
-/* Smooth masonry transitions */
+/* Smooth masonry transitions - optimized timing */
 .section.active.js-masonry .tool-card {
-  transition: transform 0.6s cubic-bezier(0.25, 0.8, 0.25, 1),
+  transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1),
               opacity 0.3s ease,
               box-shadow 0.2s ease;
 }

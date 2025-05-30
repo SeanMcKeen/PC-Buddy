@@ -443,15 +443,20 @@ window.addEventListener('DOMContentLoaded', async () => {
     if (window.switchingSections) return;
     window.switchingSections = true;
 
-    // Disable masonry animations during section switch
-    masonryInstances.forEach(masonry => {
+    // Add switching class to body to optimize performance
+    document.body.classList.add('switching-sections');
+
+    // Disable masonry animations during section switch and store current instances
+    const currentMasonryInstances = Array.from(masonryInstances.entries());
+    currentMasonryInstances.forEach(([section, masonry]) => {
       masonry.container.classList.add('switching-sections');
     });
 
-    // Hide all sections with fade-out
+    // Hide all sections with optimized fade-out
     sections.forEach(section => {
       section.style.opacity = '0';
       section.style.transform = 'translateY(10px)';
+      section.style.pointerEvents = 'none';
     });
 
     // Update sidebar immediately
@@ -461,7 +466,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 
     // Wait for fade-out to complete, then switch sections
     setTimeout(() => {
-      // Hide old sections
+      // Hide old sections efficiently
       sections.forEach(section => {
         section.classList.remove('active');
         section.style.display = 'none';
@@ -476,45 +481,60 @@ window.addEventListener('DOMContentLoaded', async () => {
         // Force a reflow to ensure display change is applied
         targetSection.offsetHeight;
         
-        // Initialize masonry for new section after it's visible
+        // Clean up old masonry instances first
         setTimeout(() => {
           // Destroy old masonry instances that are no longer active
-          masonryInstances.forEach((masonry, section) => {
+          currentMasonryInstances.forEach(([section, masonry]) => {
             if (!section.classList.contains('active')) {
               masonry.destroy();
               masonryInstances.delete(section);
             }
           });
           
+          // Ensure all switching-sections classes are removed before creating new instances
+          document.querySelectorAll('.switching-sections').forEach(element => {
+            element.classList.remove('switching-sections');
+          });
+          document.body.classList.remove('switching-sections');
+          
           // Initialize masonry for active section
           initMasonryLayout();
           
-          // Fade in the new section
+          // Wait for masonry to initialize before fading in
           setTimeout(() => {
+            // Fade in the new section with hardware acceleration
             targetSection.style.opacity = '1';
             targetSection.style.transform = 'translateY(0)';
+            targetSection.style.pointerEvents = '';
             
-            // Re-enable animations after layout is complete
+            // Final cleanup after fade-in completes
             setTimeout(() => {
-              masonryInstances.forEach(masonry => {
-                masonry.container.classList.remove('switching-sections');
-              });
-              
               // Reset all section styles
               sections.forEach(section => {
                 section.style.display = '';
                 section.style.opacity = '';
                 section.style.transform = '';
+                section.style.pointerEvents = '';
+              });
+              
+              // Ensure no switching classes remain anywhere
+              document.querySelectorAll('.switching-sections').forEach(element => {
+                element.classList.remove('switching-sections');
               });
               
               window.switchingSections = false;
-            }, 200); // Wait for fade-in to complete
-          }, 100); // Small delay for masonry to initialize
+            }, 200); // Wait for fade-in animation to complete
+          }, 100); // Wait for masonry to initialize
         }, 50); // Wait for section to be visible
       } else {
+        // Clean up if section not found
+        document.body.classList.remove('switching-sections');
+        document.querySelectorAll('.switching-sections').forEach(element => {
+          element.classList.remove('switching-sections');
+        });
         window.switchingSections = false;
       }
-    }, 200); // Wait for fade-out animation
+    }, 150); // Reduced fade-out wait time
   }
 
   sidebarItems.forEach(item => {
@@ -528,16 +548,25 @@ window.addEventListener('DOMContentLoaded', async () => {
   if (defaultSection) switchSection(defaultSection);
 
   document.getElementById('toggleSidebar')?.addEventListener('click', () => {
-    document.getElementById('sidebar').classList.toggle('collapsed');
+    const sidebar = document.getElementById('sidebar');
+    sidebar.classList.toggle('collapsed');
     
-    // Refresh masonry layout after sidebar toggle with slight delay
+    // Add transitioning class to prevent layout thrashing
+    sidebar.classList.add('transitioning');
+    
+    // Use shorter, more responsive delay for masonry updates
     setTimeout(() => {
       masonryInstances.forEach(masonry => {
         if (masonry.container.classList.contains('active')) {
           masonry.handleResize();
         }
       });
-    }, 350); // Wait for sidebar transition to complete
+    }, 250); // Reduced from 350ms for more responsive feel
+    
+    // Remove transitioning class after transition completes
+    setTimeout(() => {
+      sidebar.classList.remove('transitioning');
+    }, 300); // Match CSS transition duration
   });
 
   // -------------------------
@@ -1026,14 +1055,32 @@ window.addEventListener('DOMContentLoaded', async () => {
   // Initialize custom shortcuts
   loadCustomShortcuts();
 
-  // Handle window resize for masonry layout
+  // Handle window resize for masonry layout with improved debouncing
+  let windowResizeTimeout;
+  let isWindowResizing = false;
+  
   window.addEventListener('resize', () => {
-    clearTimeout(window.masonryResizeTimeout);
-    window.masonryResizeTimeout = setTimeout(() => {
+    clearTimeout(windowResizeTimeout);
+    
+    // Set flag to prevent layout calculations during rapid resize events
+    if (!isWindowResizing) {
+      isWindowResizing = true;
+      document.body.classList.add('window-resizing');
+    }
+    
+    windowResizeTimeout = setTimeout(() => {
       masonryInstances.forEach(masonry => {
-        masonry.handleResize();
+        if (masonry.container.classList.contains('active')) {
+          masonry.handleResize();
+        }
       });
-    }, 150);
+      
+      // Clean up resizing state
+      setTimeout(() => {
+        isWindowResizing = false;
+        document.body.classList.remove('window-resizing');
+      }, 100);
+    }, 100); // Reduced from 150ms for better responsiveness
   });
 
   // -------------------------
@@ -1674,6 +1721,11 @@ class MasonryLayout {
     // Prevent multiple simultaneous resize operations
     if (this.isResizing) return;
     
+    // Don't resize during section switching or window resizing
+    if (window.switchingSections || document.body.classList.contains('window-resizing')) {
+      return;
+    }
+    
     // Cancel any pending resize operations
     if (this.resizeRAF) {
       cancelAnimationFrame(this.resizeRAF);
@@ -1689,20 +1741,24 @@ class MasonryLayout {
       if (needsWidthUpdate) {
         this.cardWidth = newCardWidth;
         
-        // Update card widths efficiently
+        // Update card widths efficiently with transform3d
         this.cards.forEach(card => {
           card.style.width = `${this.cardWidth}px`;
+          // Ensure hardware acceleration is maintained
+          if (!card.style.transform || !card.style.transform.includes('translate3d')) {
+            card.style.transform = 'translate3d(0, 0, 0)';
+          }
         });
         
         // Wait a frame for width changes to apply, then recalculate
         requestAnimationFrame(() => {
           this.calculateLayout(true);
           
-          // Clean up resize state
+          // Clean up resize state with shorter timing
           setTimeout(() => {
             this.container.classList.remove('resizing');
             this.isResizing = false;
-          }, 300); // Match transition duration
+          }, 250); // Reduced from 300ms
         });
       } else {
         // Just recalculate positions without width changes
@@ -1711,7 +1767,7 @@ class MasonryLayout {
         setTimeout(() => {
           this.container.classList.remove('resizing');
           this.isResizing = false;
-        }, 300);
+        }, 250); // Reduced from 300ms
       }
     });
   }
@@ -1871,11 +1927,64 @@ function initMasonryLayout() {
       masonryInstances.get(section).destroy();
     }
     
+    // Ensure the section doesn't have any stuck switching classes
+    section.classList.remove('switching-sections');
+    
+    // Ensure all cards have proper transitions enabled
+    cards.forEach(card => {
+      card.style.transition = '';
+      if (!card.style.transform || !card.style.transform.includes('translate3d')) {
+        card.style.transform = 'translate3d(0, 0, 0)';
+      }
+    });
+    
     // Create new masonry instance
     const masonry = new MasonryLayout(section, { gap: 20 });
     masonryInstances.set(section, masonry);
   });
 }
+
+// Add function to restore smoothness if it gets stuck
+function restoreSmoothAnimations() {
+  console.log('[Smoothness] Restoring smooth animations...');
+  
+  // Remove any stuck switching classes
+  document.querySelectorAll('.switching-sections').forEach(element => {
+    element.classList.remove('switching-sections');
+  });
+  
+  // Remove body-level classes that might be stuck
+  document.body.classList.remove('switching-sections', 'window-resizing');
+  
+  // Reset all tool cards to have proper animations
+  document.querySelectorAll('.tool-card').forEach(card => {
+    card.style.transition = '';
+    card.style.willChange = 'transform';
+    if (!card.style.transform || !card.style.transform.includes('translate3d')) {
+      card.style.transform = 'translate3d(0, 0, 0)';
+    }
+  });
+  
+  // Reset sidebar transitions
+  const sidebar = document.getElementById('sidebar');
+  if (sidebar) {
+    sidebar.classList.remove('transitioning');
+  }
+  
+  // Refresh all masonry instances
+  masonryInstances.forEach(masonry => {
+    masonry.container.classList.remove('switching-sections', 'resizing');
+    masonry.refresh();
+  });
+  
+  // Reset switching state
+  window.switchingSections = false;
+  
+  console.log('[Smoothness] Smooth animations restored!');
+}
+
+// Make the restore function available globally for debugging
+window.restoreSmoothness = restoreSmoothAnimations;
 
 function refreshMasonryLayout() {
   masonryInstances.forEach(masonry => {
