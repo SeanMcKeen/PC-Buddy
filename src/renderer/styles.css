@@ -2648,17 +2648,65 @@ input:checked + .toggle-slider:before {
   display: flex;
   align-items: center;
   gap: 4px;
+  position: relative;
+  overflow: hidden;
 }
 
-.backup-delete-btn:hover {
+.backup-delete-btn:hover:not(:disabled) {
   background: linear-gradient(135deg, #d32f2f, #b71c1c);
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(244, 67, 54, 0.3);
 }
 
-.backup-delete-btn:active {
+.backup-delete-btn:active:not(:disabled) {
   transform: translateY(0);
   box-shadow: 0 2px 6px rgba(244, 67, 54, 0.3);
+}
+
+/* Enhanced disabled state for delete button */
+.backup-delete-btn:disabled {
+  background: var(--border-color);
+  color: var(--text-muted);
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+  opacity: 0.6;
+}
+
+.backup-delete-btn.processing {
+  cursor: wait;
+  opacity: 0.8;
+  pointer-events: none;
+}
+
+.backup-delete-btn.processing::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  animation: deleteProcessing 1.5s infinite;
+}
+
+.backup-delete-btn.success {
+  background: linear-gradient(135deg, var(--success-color), #2e7d32);
+  color: white;
+  cursor: default;
+  pointer-events: none;
+  animation: successPulse 0.6s ease-in-out;
+}
+
+@keyframes deleteProcessing {
+  0% { left: -100%; }
+  100% { left: 100%; }
+}
+
+@keyframes successPulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
 }
 
 .no-backups-message {

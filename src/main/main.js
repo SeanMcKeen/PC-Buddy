@@ -640,11 +640,21 @@ ipcMain.handle('select-file-or-folder', async () => {
   }
 });
 
-// Delete backup files handler
+// Delete backup files handler - WINDOWS LONG PATH COMPATIBLE
 ipcMain.handle('delete-backup', async (event, backupFile) => {
   return new Promise(async (resolve, reject) => {
+    const startTime = Date.now();
+    log('[delete-backup] Starting deletion request for:', backupFile);
+    
     try {
+      // Validate input parameters
+      if (!backupFile || typeof backupFile !== 'string') {
+        log('[delete-backup] Invalid backup file parameter:', backupFile);
+        return reject(new Error('Invalid backup file parameter'));
+      }
+
       const backupPath = await getCurrentBackupPath();
+      log('[delete-backup] Using backup path:', backupPath);
       
       // Validate backup path for security
       try {
@@ -655,14 +665,14 @@ ipcMain.handle('delete-backup', async (event, backupFile) => {
       }
       
       // Validate backup file name for security
-      if (!backupFile || typeof backupFile !== 'string' || backupFile.includes('..') || 
-          backupFile.includes('/') || backupFile.includes('\\')) {
-        log('[delete-backup] Invalid backup file name:', backupFile);
+      if (backupFile.includes('..') || backupFile.includes('/') || backupFile.includes('\\')) {
+        log('[delete-backup] Invalid backup file name (path traversal attempt):', backupFile);
         return reject(new Error('Invalid backup file name'));
       }
       
       const fs = require('fs');
       const fullBackupPath = path.join(backupPath, backupFile);
+      log('[delete-backup] Full backup path to delete:', fullBackupPath);
       
       // Additional security check - ensure file is in the backup directory
       if (!fullBackupPath.startsWith(backupPath)) {
@@ -677,22 +687,122 @@ ipcMain.handle('delete-backup', async (event, backupFile) => {
       }
       
       // Check if it's a directory or file and delete accordingly
-      const stats = fs.statSync(fullBackupPath);
-      
-      if (stats.isDirectory()) {
-        // Delete directory recursively
-        fs.rmSync(fullBackupPath, { recursive: true, force: true });
-        log('[delete-backup] Successfully deleted backup directory:', fullBackupPath);
-      } else {
-        // Delete file
-        fs.unlinkSync(fullBackupPath);
-        log('[delete-backup] Successfully deleted backup file:', fullBackupPath);
+      let stats;
+      try {
+        stats = fs.statSync(fullBackupPath);
+      } catch (statError) {
+        log('[delete-backup] Error getting file stats:', statError);
+        return reject(new Error('Failed to access backup file'));
       }
       
-      resolve(`Backup "${backupFile}" deleted successfully`);
+      log('[delete-backup] File stats - isDirectory:', stats.isDirectory(), 'size:', stats.size);
+      
+      try {
+        if (stats.isDirectory()) {
+          // Handle long paths by moving to temp location first, then deleting
+          log('[delete-backup] Deleting directory with long path support:', fullBackupPath);
+          const deleteStart = Date.now();
+          
+          // Create a short temp directory name to avoid path length issues
+          const tempId = Date.now().toString(36);
+          const tempPath = path.join(os.tmpdir(), `del_${tempId}`);
+          log('[delete-backup] Using temp path for deletion:', tempPath);
+          
+          await new Promise((moveResolve, moveReject) => {
+            // First, move the directory to a temp location with a short path
+            const moveCommand = `robocopy "${fullBackupPath}" "${tempPath}" /E /MOVE /R:0 /W:0 /NFL /NDL /NP /NJH /NJS`;
+            
+            exec(moveCommand, { timeout: 120000 }, (moveError, moveStdout, moveStderr) => {
+              // Robocopy exit codes 0-7 are success (8+ are errors)
+              if (moveError && moveError.code > 7) {
+                log('[delete-backup] Robocopy move failed:', moveError);
+                log('[delete-backup] Robocopy stderr:', moveStderr);
+                
+                // If robocopy fails, try direct rmdir with UNC path notation
+                log('[delete-backup] Trying direct deletion with UNC path');
+                const uncPath = `\\\\?\\${fullBackupPath}`;
+                const rmCommand = `rmdir /s /q "${uncPath}"`;
+                
+                exec(rmCommand, { timeout: 60000 }, (rmError, rmStdout, rmStderr) => {
+                  if (rmError) {
+                    log('[delete-backup] UNC rmdir failed:', rmError);
+                    moveReject(new Error(`Failed to delete directory: ${moveError.message}`));
+                  } else {
+                    log('[delete-backup] UNC rmdir succeeded');
+                    moveResolve();
+                  }
+                });
+              } else {
+                log('[delete-backup] Robocopy move completed, now deleting temp directory');
+                
+                // Now delete the temp directory (which has short paths)
+                const deleteTempCommand = `rmdir /s /q "${tempPath}"`;
+                
+                exec(deleteTempCommand, { timeout: 60000 }, (delError, delStdout, delStderr) => {
+                  if (delError) {
+                    log('[delete-backup] Temp deletion failed:', delError);
+                    // Try to clean up manually
+                    try {
+                      fs.rmSync(tempPath, { recursive: true, force: true });
+                      log('[delete-backup] Manual temp cleanup succeeded');
+                      moveResolve();
+                    } catch (cleanupError) {
+                      log('[delete-backup] Manual cleanup failed:', cleanupError);
+                      moveReject(new Error(`Directory moved but temp cleanup failed: ${delError.message}`));
+                    }
+                  } else {
+                    log('[delete-backup] Temp directory deleted successfully');
+                    moveResolve();
+                  }
+                });
+              }
+            });
+          });
+          
+          const deleteTime = Date.now() - deleteStart;
+          log('[delete-backup] Successfully deleted backup directory in', deleteTime, 'ms');
+        } else {
+          // Delete single file
+          log('[delete-backup] Deleting file:', fullBackupPath);
+          const deleteStart = Date.now();
+          
+          fs.unlinkSync(fullBackupPath);
+          
+          const deleteTime = Date.now() - deleteStart;
+          log('[delete-backup] Successfully deleted backup file in', deleteTime, 'ms');
+        }
+        
+        const totalTime = Date.now() - startTime;
+        const successMessage = `Backup "${backupFile}" deleted successfully`;
+        log('[delete-backup] Operation completed in', totalTime, 'ms');
+        resolve(successMessage);
+        
+      } catch (deleteError) {
+        log('[delete-backup] File deletion error:', deleteError);
+        
+        // Provide more specific error messages
+        if (deleteError.message.includes('timeout')) {
+          return reject(new Error('Cannot delete backup: operation timed out (backup may be very large)'));
+        } else if (deleteError.message.includes('Access is denied')) {
+          return reject(new Error('Cannot delete backup: access denied. Try running PC Buddy as administrator.'));
+        } else if (deleteError.message.includes('cannot find')) {
+          return reject(new Error('Cannot delete backup: file not found'));
+        } else if (deleteError.message.includes('path') && deleteError.message.includes('long')) {
+          return reject(new Error('Cannot delete backup: file paths are too long for Windows. Please delete manually.'));
+        } else if (deleteError.code === 'EBUSY') {
+          return reject(new Error('Cannot delete backup: file is currently in use'));
+        } else if (deleteError.code === 'EACCES') {
+          return reject(new Error('Cannot delete backup: access denied'));
+        } else if (deleteError.code === 'ENOENT') {
+          return reject(new Error('Cannot delete backup: file not found'));
+        } else {
+          return reject(new Error(`Failed to delete backup: ${deleteError.message}`));
+        }
+      }
       
     } catch (error) {
-      log('[delete-backup] Error:', error);
+      const totalTime = Date.now() - startTime;
+      log('[delete-backup] Unexpected error after', totalTime, 'ms:', error);
       reject(new Error(`Failed to delete backup: ${error.message}`));
     }
   });

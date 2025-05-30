@@ -82,15 +82,20 @@ function handleToolButtonAction(button, action) {
   });
 }
 
-// Simple notification function using modal system
+// Simple notification function using modal system - FIXED TO PREVENT FREEZING
 function showNotification(message, type = 'info') {
-  return showModal({
-    type: type,
-    title: type === 'success' ? 'Success' : type === 'error' ? 'Error' : 'Information',
-    message: message,
-    confirmText: 'OK',
-    showCancel: false
-  });
+  // Add a small delay to prevent modal conflicts and make it non-blocking
+  setTimeout(() => {
+    showModal({
+      type: type,
+      title: type === 'success' ? 'Success' : type === 'error' ? 'Error' : 'Information',
+      message: message,
+      confirmText: 'OK',
+      showCancel: false
+    }).catch(error => {
+      console.error('[showNotification] Modal error:', error);
+    });
+  }, 100);
 }
 
 // Function to refresh backup info display
@@ -185,29 +190,116 @@ async function refreshBackupInfo() {
   }
 }
 
-// Function to delete a backup file
+// Function to delete a backup file - FIXED TO PREVENT FREEZING
 async function deleteBackupFile(fileName) {
-  const confirmed = await showModal({
-    type: 'warning',
-    title: 'Delete Backup',
-    message: `Are you sure you want to delete the backup file "${fileName}"?\n\nThis action cannot be undone.`,
-    confirmText: 'Delete Backup'
-  });
+  // Find the delete button for this file to provide visual feedback
+  const deleteButtons = document.querySelectorAll('.backup-delete-btn');
+  let currentDeleteBtn = null;
   
-  if (confirmed) {
-    try {
-      const result = await window.backupAPI.deleteBackup(fileName);
-      console.log('[Delete Backup] Success:', result);
-      
-      // Refresh the backup info to update the list
-      await refreshBackupInfo();
-      
-      // Show success message
-      showNotification(`Backup "${fileName}" deleted successfully`, 'success');
-    } catch (error) {
-      console.error('[Delete Backup] Error:', error);
-      showNotification('Failed to delete backup: ' + error.message, 'error');
+  deleteButtons.forEach(btn => {
+    if (btn.onclick && btn.onclick.toString().includes(fileName)) {
+      currentDeleteBtn = btn;
     }
+  });
+
+  try {
+    const confirmed = await showModal({
+      type: 'warning',
+      title: 'Delete Backup',
+      message: `Are you sure you want to delete the backup file "${fileName}"?\n\nThis action cannot be undone.`,
+      confirmText: 'Delete Backup'
+    });
+    
+    if (confirmed) {
+      // Add visual feedback to button
+      if (currentDeleteBtn) {
+        currentDeleteBtn.disabled = true;
+        currentDeleteBtn.classList.add('processing');
+        currentDeleteBtn.innerHTML = '<span>⏳</span> Deleting...';
+      }
+
+      try {
+        console.log('[Delete Backup] Starting deletion of:', fileName);
+        
+        // Set up a timeout to show extended progress for large files
+        let progressTimeout = null;
+        let progressStep = 0;
+        const progressMessages = [
+          '<span>⏳</span> Deleting...',
+          '<span>🗂️</span> Removing files...',
+          '<span>📁</span> Cleaning directories...',
+          '<span>🧹</span> Finalizing cleanup...'
+        ];
+        
+        // Start progress animation for longer operations
+        progressTimeout = setInterval(() => {
+          if (currentDeleteBtn) {
+            progressStep = (progressStep + 1) % progressMessages.length;
+            currentDeleteBtn.innerHTML = progressMessages[progressStep];
+          }
+        }, 2000); // Change message every 2 seconds
+        
+        const result = await window.backupAPI.deleteBackup(fileName);
+        
+        // Clear progress animation
+        if (progressTimeout) {
+          clearInterval(progressTimeout);
+        }
+        
+        console.log('[Delete Backup] Success:', result);
+        
+        // Show completion feedback briefly
+        if (currentDeleteBtn) {
+          currentDeleteBtn.innerHTML = '<span>✅</span> Deleted!';
+          currentDeleteBtn.classList.remove('processing');
+          currentDeleteBtn.classList.add('success');
+        }
+        
+        // Refresh the backup info to update the list
+        await refreshBackupInfo();
+        
+        // Show success message with delay to prevent UI conflicts
+        showNotification(`Backup "${fileName}" deleted successfully`, 'success');
+        
+      } catch (error) {
+        console.error('[Delete Backup] Error:', error);
+        
+        // Clear any ongoing progress animation
+        if (progressTimeout) {
+          clearInterval(progressTimeout);
+        }
+        
+        // Restore button state on error
+        if (currentDeleteBtn) {
+          currentDeleteBtn.disabled = false;
+          currentDeleteBtn.classList.remove('processing');
+          currentDeleteBtn.innerHTML = '<span>🗑️</span> Delete';
+        }
+        
+        // Show more specific error messages
+        let errorMessage = 'Failed to delete backup: ' + error.message;
+        if (error.message.includes('timeout')) {
+          errorMessage = 'Backup deletion timed out. The backup may be very large. Please try again or delete manually.';
+        } else if (error.message.includes('in use')) {
+          errorMessage = 'Cannot delete backup: files are currently in use. Please close any programs that might be accessing the backup.';
+        } else if (error.message.includes('access denied')) {
+          errorMessage = 'Cannot delete backup: access denied. Try running PC Buddy as administrator.';
+        }
+        
+        showNotification(errorMessage, 'error');
+      }
+    }
+  } catch (error) {
+    console.error('[Delete Backup] Modal error:', error);
+    
+    // Restore button state on error
+    if (currentDeleteBtn) {
+      currentDeleteBtn.disabled = false;
+      currentDeleteBtn.classList.remove('processing');
+      currentDeleteBtn.innerHTML = '<span>🗑️</span> Delete';
+    }
+    
+    showNotification('An error occurred while showing the confirmation dialog', 'error');
   }
 }
 
@@ -1308,13 +1400,42 @@ async function performDriveCleanup(driveLetter) {
 }
 
 // -------------------------
-// Modal System
+// Modal System - ENHANCED TO PREVENT FREEZING
 // -------------------------
 
+// Track active modals to prevent stacking
+let activeModalCount = 0;
+const MAX_MODALS = 1;
+
 async function showModal({ type = 'info', title, message, confirmText = 'OK', cancelText = 'Cancel', showCancel = true }) {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
+    // Prevent too many modals from stacking
+    if (activeModalCount >= MAX_MODALS) {
+      console.warn('[showModal] Maximum modals reached, rejecting new modal request');
+      reject(new Error('Maximum modals reached'));
+      return;
+    }
+
+    activeModalCount++;
+    
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
+    overlay.style.zIndex = 1000 + activeModalCount;
+
+    // Add cleanup function
+    const cleanup = (result) => {
+      try {
+        if (overlay.parentNode) {
+          overlay.parentNode.removeChild(overlay);
+        }
+        activeModalCount = Math.max(0, activeModalCount - 1);
+        resolve(result);
+      } catch (error) {
+        console.error('[showModal] Cleanup error:', error);
+        activeModalCount = Math.max(0, activeModalCount - 1);
+        resolve(false);
+      }
+    };
 
     const content = document.createElement('div');
     content.className = 'modal-content';
@@ -1354,36 +1475,62 @@ async function showModal({ type = 'info', title, message, confirmText = 'OK', ca
       const cancelBtn = document.createElement('button');
       cancelBtn.className = 'modal-button cancel';
       cancelBtn.textContent = cancelText;
-      cancelBtn.onclick = () => {
-        document.body.removeChild(overlay);
-        resolve(false);
-      };
+      cancelBtn.onclick = () => cleanup(false);
       actions.appendChild(cancelBtn);
     }
 
     const confirmBtn = document.createElement('button');
     confirmBtn.className = `modal-button ${type}`;
     confirmBtn.textContent = confirmText;
-    confirmBtn.onclick = () => {
-      document.body.removeChild(overlay);
-      resolve(true);
-    };
+    confirmBtn.onclick = () => cleanup(true);
     actions.appendChild(confirmBtn);
 
     content.appendChild(actions);
     overlay.appendChild(content);
-    document.body.appendChild(overlay);
+
+    try {
+      document.body.appendChild(overlay);
+    } catch (error) {
+      console.error('[showModal] Error appending overlay:', error);
+      activeModalCount = Math.max(0, activeModalCount - 1);
+      reject(error);
+      return;
+    }
 
     // Close on overlay click
     overlay.addEventListener('click', (e) => {
       if (e.target === overlay) {
-        document.body.removeChild(overlay);
-        resolve(false);
+        cleanup(false);
       }
     });
 
-    // Focus the confirm button
-    setTimeout(() => confirmBtn.focus(), 100);
+    // Close on Escape key
+    const escapeHandler = (e) => {
+      if (e.key === 'Escape') {
+        document.removeEventListener('keydown', escapeHandler);
+        cleanup(false);
+      }
+    };
+    document.addEventListener('keydown', escapeHandler);
+
+    // Focus the confirm button with error handling
+    setTimeout(() => {
+      try {
+        if (confirmBtn && confirmBtn.focus) {
+          confirmBtn.focus();
+        }
+      } catch (error) {
+        console.warn('[showModal] Focus error:', error);
+      }
+    }, 100);
+
+    // Auto-cleanup after 30 seconds to prevent hanging
+    setTimeout(() => {
+      if (overlay.parentNode) {
+        console.warn('[showModal] Auto-cleanup triggered for hanging modal');
+        cleanup(false);
+      }
+    }, 30000);
   });
 }
 
