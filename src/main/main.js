@@ -1,3 +1,5 @@
+process.env.DEBUG = 'electron-updater'; // Verbose updater logs
+
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const { exec, spawn } = require('child_process');
@@ -5,16 +7,14 @@ const sudo = require('sudo-prompt');
 const { autoUpdater } = require('electron-updater');
 const fs = require('fs');
 const os = require('os');
+const log = require('electron-log');
 
+// Configure autoUpdater logging
+autoUpdater.logger = log;
+log.transports.file.level = 'info';
+log.transports.console.level = 'debug';
 
-console.log('[Updater] App version:', app.getVersion());
-
-autoUpdater.on('checking-for-update', () => console.log('[Updater] Checking for update...'));
-autoUpdater.on('update-not-available', () => console.log('[Updater] No update available.'));
-autoUpdater.on('update-available', (info) => console.log('[Updater] Update available:', info.version));
-autoUpdater.on('download-progress', (p) => console.log(`[Updater] Downloading: ${Math.round(p.percent)}%`));
-autoUpdater.on('update-downloaded', () => console.log('[Updater] Update downloaded. Will install on quit.'));
-autoUpdater.on('error', (err) => console.error('[Updater] Error:', err));
+console.log('[Updater] App version (package.json):', app.getVersion());
 
 const options = { name: 'PC Buddy' };
 
@@ -24,34 +24,47 @@ function createWindow() {
     height: 800,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
-      contextIsolation: true,   
-      nodeIntegration: false,   
+      contextIsolation: true,
+      nodeIntegration: false,
       enableRemoteModule: false,
       sandbox: false
     }
   });
 
   win.loadFile(path.join(__dirname, '../renderer/index.html'));
-  win.webContents.once('did-finish-load', () => autoUpdater.checkForUpdatesAndNotify());
+
+  win.webContents.once('did-finish-load', () => {
+    console.log('[Updater] Current app version:', app.getVersion());
+    console.log('[Updater] electron-updater version:', autoUpdater.currentVersion.version);
+    autoUpdater.checkForUpdatesAndNotify();
+  });
 }
+
+// Auto updater logging
+autoUpdater.on('checking-for-update', () => log.info('[Updater] Checking for update...'));
+autoUpdater.on('update-available', info => log.info('[Updater] Update available:', info.version));
+autoUpdater.on('update-not-available', () => log.info('[Updater] No update available.'));
+autoUpdater.on('error', err => log.error('[Updater] Error:', err));
+autoUpdater.on('download-progress', p => log.info(`[Updater] Downloading: ${Math.round(p.percent)}%`));
+autoUpdater.on('update-downloaded', () => log.info('[Updater] Update downloaded. Will install on quit.'));
 
 app.whenReady().then(createWindow);
 
 ipcMain.handle('run-sfc-and-dism', async () => {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     sudo.exec('sfc /scannow', options, (sfcErr, sfcOut, sfcErrOut) => {
       const output = sfcOut + sfcErrOut;
       const needsDism = /unable to fix/i.test(output);
 
       if (sfcErr) {
-        console.error('[SFC Error]', sfcErr);
+        log.error('[SFC Error]', sfcErr);
         return resolve('System scan failed. Please try again later.');
       }
 
       if (needsDism) {
-        sudo.exec('DISM /Online /Cleanup-Image /RestoreHealth', options, (dismErr, dismOut, dismErrOut) => {
+        sudo.exec('DISM /Online /Cleanup-Image /RestoreHealth', options, (dismErr) => {
           if (dismErr) {
-            console.error('[DISM Error]', dismErr);
+            log.error('[DISM Error]', dismErr);
             return resolve('SFC found problems but DISM failed.');
           }
           return resolve('SFC found problems. DISM repair attempted.');
@@ -64,10 +77,10 @@ ipcMain.handle('run-sfc-and-dism', async () => {
 });
 
 ipcMain.handle('run-disk-cleanup', async () => {
-  return new Promise((resolve, reject) => {
-    sudo.exec('cleanmgr /sagerun:1', options, (err, stdout, stderr) => {
+  return new Promise((resolve) => {
+    sudo.exec('cleanmgr /sagerun:1', options, (err) => {
       if (err) {
-        console.error('[Disk Cleanup Error]', err);
+        log.error('[Disk Cleanup Error]', err);
         return resolve('Disk cleanup failed.');
       }
       return resolve('Disk cleanup completed successfully.');
@@ -88,9 +101,6 @@ function normalizeStartupItems(items) {
   });
 }
 
-
-
-
 function fetchStartupPrograms() {
   return new Promise((resolve, reject) => {
     const scriptPath = app.isPackaged
@@ -99,8 +109,8 @@ function fetchStartupPrograms() {
 
     const tempJsonPath = path.join(os.tmpdir(), 'startup_programs.json');
 
-    console.log('[Debug] Looking for script at:', scriptPath);
-    console.log('[Debug] Will write JSON to:', tempJsonPath);
+    log.debug('[Debug] Looking for script at:', scriptPath);
+    log.debug('[Debug] Will write JSON to:', tempJsonPath);
 
     const ps = spawn('powershell.exe', [
       '-NoProfile',
@@ -112,8 +122,8 @@ function fetchStartupPrograms() {
     ps.stderr.on('data', data => stderr += data.toString());
 
     ps.on('close', (code) => {
-      console.log('[Debug] PowerShell exit code:', code);
-      console.log('[Debug] Raw PS error output on exit:', stderr);
+      log.debug('[Debug] PowerShell exit code:', code);
+      log.debug('[Debug] Raw PS error output on exit:', stderr);
 
       if (code !== 0) return reject(new Error(`PowerShell script failed: ${stderr}`));
 
@@ -121,8 +131,9 @@ function fetchStartupPrograms() {
         const raw = fs.readFileSync(tempJsonPath, 'utf8').replace(/^\uFEFF/, '');
         const data = JSON.parse(raw);
 
-        resolve(normalizeStartupItems(data));
-        console.log('[Debug] Normalized startup items:', data);
+        const normalized = normalizeStartupItems(data);
+        log.debug('[Debug] Normalized startup items:', normalized);
+        resolve(normalized);
       } catch (err) {
         reject(new Error(`Failed to parse JSON from file: ${err.message}`));
       }
@@ -156,6 +167,6 @@ ipcMain.handle('toggle-startup-program', async (event, programName, enable) => {
 
 ipcMain.on('open-task-manager', () => {
   exec('start taskmgr.exe /0 /startup', (error) => {
-    if (error) console.error('Failed to open Task Manager:', error);
+    if (error) log.error('Failed to open Task Manager:', error);
   });
 });
