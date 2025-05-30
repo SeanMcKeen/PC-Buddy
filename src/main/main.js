@@ -94,7 +94,7 @@ function normalizeStartupItems(items) {
 function fetchStartupPrograms() {
   return new Promise((resolve, reject) => {
     const scriptPath = app.isPackaged
-      ? path.join(process.resourcesPath, 'app.asar.unpacked', 'assets', 'getStartupPrograms.ps1')
+      ? path.join(process.resourcesPath, 'assets', 'getStartupPrograms.ps1')
       : path.join(__dirname, '..', 'assets', 'getStartupPrograms.ps1');
 
     const tempJsonPath = path.join(os.tmpdir(), 'startup_programs.json');
@@ -141,7 +141,7 @@ ipcMain.handle('toggle-startup-program', async (event, programName, enable) => {
   if (!item) throw new Error(`Startup item '${programName}' not found`);
 
   const scriptPath = app.isPackaged
-    ? path.join(process.resourcesPath, 'app.asar.unpacked', 'assets', 'toggleStartup.ps1')
+    ? path.join(process.resourcesPath, 'assets', 'toggleStartup.ps1')
     : path.join(__dirname, '..', 'assets', 'toggleStartup.ps1');
 
   const command = `powershell -NoProfile -ExecutionPolicy Bypass -File "${scriptPath}" -Name "${item.RegistryName}" -Source "${item.Source}" -Enable ${enable ? '1' : '0'}`;

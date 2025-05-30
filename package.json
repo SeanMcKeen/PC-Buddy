@@ -24,7 +24,7 @@
     "asar": true,
     "extraResources": [
       {
-        "from": "srcassets",
+        "from": "src/assets", 
         "to": "assets",
         "filter": ["**/*.ps1"]
       }
