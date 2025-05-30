@@ -17,16 +17,20 @@
       {
         "from": "src",
         "to": "src",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       },
       "package.json"
     ],
     "asar": true,
     "extraResources": [
       {
-        "from": "src/assets", 
+        "from": "src/assets",
         "to": "assets",
-        "filter": ["**/*.ps1"]
+        "filter": [
+          "**/*.ps1"
+        ]
       }
     ],
     "asarUnpack": [
@@ -47,6 +51,7 @@
     "electron-builder": "^24.6.0"
   },
   "dependencies": {
+    "electron-log": "^5.4.0",
     "electron-updater": "^6.6.2",
     "sudo-prompt": "^9.2.1"
   }
