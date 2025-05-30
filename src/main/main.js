@@ -27,15 +27,23 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1920,
     height: 1080,
+    icon: path.join(__dirname, '../assets/images/logo.png'),
+    autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false
+      sandbox: false,
+      devTools: !app.isPackaged
     }
   });
 
   mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
+
+  // Hide menu bar completely when packaged
+  if (app.isPackaged) {
+    mainWindow.setMenuBarVisibility(false);
+  }
 
   mainWindow.webContents.on('did-finish-load', () => {
     log('[Updater] Checking for updates...');

@@ -21,6 +21,13 @@
           "**/*"
         ]
       },
+      {
+        "from": "assets",
+        "to": "assets",
+        "filter": [
+          "**/*"
+        ]
+      },
       "package.json"
     ],
     "asar": true,
@@ -37,7 +44,8 @@
       "**/assets/*.ps1"
     ],
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "icon": "assets/images/logo.ico"
     },
     "publish": {
       "provider": "github",
