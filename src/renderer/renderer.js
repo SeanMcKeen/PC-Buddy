@@ -99,6 +99,16 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 });
 
+function getExeNameFallback(name, command) {
+  // Special handling for Discord and similar known launchers
+  if (/Discord\.exe/i.test(command)) return 'Discord.exe';
+  if (/Steam\.exe/i.test(command)) return 'Steam.exe';
+  if (/EpicGamesLauncher\.exe/i.test(command)) return 'EpicGamesLauncher.exe';
+  if (/Notion\.exe/i.test(command)) return 'Notion.exe';
+  if (/Opera\.exe/i.test(command)) return 'Opera GX.exe';
+  return name;
+}
+
 // Populate Startup Programs
 window.addEventListener('DOMContentLoaded', async () => {
   const listEl = document.getElementById('startupList');
@@ -119,12 +129,12 @@ window.addEventListener('DOMContentLoaded', async () => {
     const container = document.createElement('div');
     container.classList.add('startup-item');
 
-    const exeName = extractExeName(command) || name;
+    const exeName = extractExeName(command, getExeNameFallback(name, command));
 
     const label = document.createElement('span');
     label.className = 'startup-label';
     label.textContent = exeName;
-    label.title = command;
+    label.title = extractCommandPath(command);
 
     const badge = document.createElement('span');
     badge.className = `safety-badge ${safety}`;
@@ -211,23 +221,33 @@ window.addEventListener('DOMContentLoaded', async () => {
   });
 });
 
-function extractExeName(commandLine) {
-  if (!commandLine) return 'Unknown';
+function extractCommandPath(command) {
+  if (!command) return 'Unknown';
+  const match = command.match(/^"?([^"]+\.exe)/i);
+  return match ? match[1] : command;
+}
 
-  // Skip environment variable expansion for now
-  const normalized = commandLine;
 
-  const match = normalized.match(/(?:^|\\)([a-zA-Z0-9 _.-]+\.(exe|lnk))\b/i);
+function extractExeName(commandLine, fallbackName = 'Unknown') {
+  if (!commandLine || !commandLine.trim()) return fallbackName;
 
-  if (!match) return 'Unknown';
+  // Try to extract the real target from "--processStart"
+  const processStartMatch = commandLine.match(/--processStart(?:AndWait)?\s+([a-zA-Z0-9_.-]+\.exe)/i);
+  if (processStartMatch) return processStartMatch[1];
+
+  // Fallback: match first .exe or .lnk in the command string
+  const match = commandLine.match(/(?:^|\\)([a-zA-Z0-9 _.-]+\.(exe|lnk))\b/i);
+  if (!match) return fallbackName;
 
   let name = match[1];
   if (name.toLowerCase().endsWith('.lnk')) {
-    name = name.slice(0, -4);
+    name = name.slice(0, -4); // strip ".lnk"
   }
 
   return name.trim();
 }
+
+
 
 window.addEventListener('DOMContentLoaded', () => {
   const btn = document.getElementById('openTaskManagerBtn');

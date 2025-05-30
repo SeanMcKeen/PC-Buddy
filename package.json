@@ -1,6 +1,6 @@
 {
   "name": "pc-buddy",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "PC Buddy - Your Desktop Assistant",
   "author": "Sean McKeen",
   "license": "MIT",
@@ -24,7 +24,7 @@
     "asar": true,
     "extraResources": [
       {
-        "from": "assets",
+        "from": "srcassets",
         "to": "assets",
         "filter": ["**/*.ps1"]
       }

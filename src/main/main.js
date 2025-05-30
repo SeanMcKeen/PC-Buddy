@@ -3,6 +3,9 @@ const path = require('path');
 const { exec, spawn } = require('child_process');
 const sudo = require('sudo-prompt');
 const { autoUpdater } = require('electron-updater');
+const fs = require('fs');
+const os = require('os');
+
 
 console.log('[Updater] App version:', app.getVersion());
 
@@ -72,27 +75,56 @@ ipcMain.handle('run-disk-cleanup', async () => {
   });
 });
 
+function normalizeStartupItems(items) {
+  return items.map((item, i) => {
+    const fallbackCommand = item.Command && item.Command.trim() ? item.Command : `${item.Name}.exe`;
+    return {
+      ...item,
+      Name: item.Name || 'Unnamed',
+      Command: fallbackCommand,
+      priority: item.Safety === 'danger' ? 3 : item.Safety === 'caution' ? 2 : 1,
+      index: i
+    };
+  });
+}
+
+
+
+
 function fetchStartupPrograms() {
   return new Promise((resolve, reject) => {
     const scriptPath = app.isPackaged
-      ? path.join(process.resourcesPath, 'assets', 'getStartupPrograms.ps1')
+      ? path.join(process.resourcesPath, 'app.asar.unpacked', 'assets', 'getStartupPrograms.ps1')
       : path.join(__dirname, '..', 'assets', 'getStartupPrograms.ps1');
 
+    const tempJsonPath = path.join(os.tmpdir(), 'startup_programs.json');
+
     console.log('[Debug] Looking for script at:', scriptPath);
+    console.log('[Debug] Will write JSON to:', tempJsonPath);
 
-    const ps = spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', scriptPath]);
+    const ps = spawn('powershell.exe', [
+      '-NoProfile',
+      '-ExecutionPolicy', 'Bypass',
+      '-File', scriptPath
+    ]);
 
-    let stdout = '', stderr = '';
-    ps.stdout.on('data', data => stdout += data.toString());
+    let stderr = '';
     ps.stderr.on('data', data => stderr += data.toString());
 
     ps.on('close', (code) => {
+      console.log('[Debug] PowerShell exit code:', code);
+      console.log('[Debug] Raw PS error output on exit:', stderr);
+
       if (code !== 0) return reject(new Error(`PowerShell script failed: ${stderr}`));
+
       try {
-        let data = JSON.parse(stdout);
+        const raw = fs.readFileSync(tempJsonPath, 'utf8').replace(/^\uFEFF/, '');
+        const data = JSON.parse(raw);
+
         resolve(normalizeStartupItems(data));
+        console.log('[Debug] Normalized startup items:', data);
       } catch (err) {
-        reject(new Error('Failed to parse JSON.'));
+        reject(new Error(`Failed to parse JSON from file: ${err.message}`));
       }
     });
   });
@@ -109,7 +141,7 @@ ipcMain.handle('toggle-startup-program', async (event, programName, enable) => {
   if (!item) throw new Error(`Startup item '${programName}' not found`);
 
   const scriptPath = app.isPackaged
-    ? path.join(process.resourcesPath, 'assets', 'toggleStartup.ps1')
+    ? path.join(process.resourcesPath, 'app.asar.unpacked', 'assets', 'toggleStartup.ps1')
     : path.join(__dirname, '..', 'assets', 'toggleStartup.ps1');
 
   const command = `powershell -NoProfile -ExecutionPolicy Bypass -File "${scriptPath}" -Name "${item.RegistryName}" -Source "${item.Source}" -Enable ${enable ? '1' : '0'}`;

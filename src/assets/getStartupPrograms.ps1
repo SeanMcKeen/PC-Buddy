@@ -1,11 +1,11 @@
-# getStartupPrograms.ps1
+$ErrorActionPreference = 'SilentlyContinue'
+$ProgressPreference = 'SilentlyContinue'
 
 function Get-FilePublisher {
     param([string]$filePath)
-    
     try {
-        $signature = Get-AuthenticodeSignature -FilePath $filePath -ErrorAction Stop
-        if ($signature.Status -eq "Valid") {
+        $signature = Get-AuthenticodeSignature -FilePath $filePath
+        if ($signature.Status -eq 'Valid') {
             return $signature.SignerCertificate.Subject -replace '^CN=|,.*$'
         }
     } catch {}
@@ -14,9 +14,8 @@ function Get-FilePublisher {
 
 function Resolve-ShortcutTarget {
     param([string]$shortcutPath)
-    
     try {
-        if ($shortcutPath -like "*.lnk") {
+        if ($shortcutPath -like '*.lnk') {
             $shell = New-Object -ComObject WScript.Shell
             $shortcut = $shell.CreateShortcut($shortcutPath)
             return $shortcut.TargetPath
@@ -26,152 +25,121 @@ function Resolve-ShortcutTarget {
 }
 
 function Get-SafetyRating {
-    param(
-        [string]$name,
-        [string]$command,
-        [string]$source
-    )
+    param([string]$name, [string]$command)
+    $critical = @('SecurityHealth', 'RtkAudUService', 'explorer')
+    $system = @('OneDrive', 'Teams', 'Discord', 'Steam', 'Spotify', 'Slack', 'Chrome', 'Firefox', 'Edge')
 
-    # Critical system components that should not be disabled
-    $criticalComponents = @(
-        'SecurityHealth',        # Windows Security
-        'RtkAudUService',       # Audio drivers
-        'igfxpers',             # Intel Graphics
-        'NvBackend',            # NVIDIA
-        'IAStorIcon',           # Intel Storage
-        'CTFMon',               # CTF Loader (Windows input)
-        'SecurityHealthSystray', # Windows Security Systray
-        'HxOutlook',            # Windows Mail
-        'RuntimeBroker',        # Windows Runtime
-        'StartMenuExperienceHost', # Start Menu
-        'SearchHost',           # Windows Search
-        'ShellExperienceHost',  # Windows Shell
-        'sihost',              # Shell Infrastructure Host
-        'explorer'             # Windows Explorer
-    )
-
-    # Components that may impact system functionality but are not critical
-    $systemComponents = @(
-        'OneDrive',
-        'Teams',
-        'DropboxUpdate',
-        'GoogleUpdate',
-        'AdobeUpdateService',
-        'EvernoteClipper',
-        'Discord',
-        'Steam',
-        'Epic Games',
-        'Spotify',
-        'ccleaner',
-        'uTorrent',
-        'Skype',
-        'Slack',
-        'Chrome',
-        'Firefox',
-        'Edge'
-    )
-
-    # Check for critical system components
-    foreach ($critical in $criticalComponents) {
-        if ($name -like "*$critical*" -or $command -like "*$critical*") {
-            return 'danger'
-        }
-    }
-
-    # Check for system components with moderate impact
-    foreach ($sys in $systemComponents) {
-        if ($name -like "*$sys*" -or $command -like "*$sys*") {
-            return 'caution'
-        }
-    }
-
-    # Default to safe for user-installed applications
+    if ($critical | Where-Object { $name -like "*$_*" -or $command -like "*$_*" }) { return 'danger' }
+    if ($system | Where-Object { $name -like "*$_*" -or $command -like "*$_*" }) { return 'caution' }
     return 'safe'
+}
+
+function Normalize-ExeName {
+    param ([string]$command)
+    if ($command) {
+        $exe = $command -replace '"', '' -split '\s+' | Where-Object { $_ -like '*.exe' } | Select-Object -First 1
+        return ([System.IO.Path]::GetFileName($exe)).ToLower()
+    }
+    return $null
+}
+
+function Get-RegistryStatus {
+    param (
+        [string]$registryName,
+        [string]$exeName
+    )
+    $keys = @(
+        'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run',
+        'HKLM:\Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run',
+        'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\StartupFolder'
+    )
+
+    foreach ($key in $keys) {
+        try {
+            $props = Get-ItemProperty -Path $key
+            foreach ($prop in $props.PSObject.Properties) {
+                $normName = $prop.Name.Replace('.lnk', '')
+                $normReg = $registryName.Replace('.lnk', '')
+                if ($normName -ieq $normReg -or $normName -ieq $exeName) {
+                    $bytes = [byte[]]$prop.Value
+                    if ($bytes[0] -eq 3) { return 'disabled' }
+                    else { return 'enabled' }
+                }
+            }
+        } catch {}
+    }
+    return 'enabled'  # fallback default
 }
 
 function Get-StartupPrograms {
     $items = @()
-    
-    # 1. WMI Startup Commands (covers Run and RunOnce keys)
-    try {
-        $wmiStartupItems = Get-CimInstance -ClassName Win32_StartupCommand
-        foreach ($item in $wmiStartupItems) {
-            $command = $item.Command
-            $name = $item.Name
-            
-            # Resolve .lnk files to their target executables
-            $resolvedCommand = Resolve-ShortcutTarget -shortcutPath ($command -replace '"', '')
-            
-            # Check status in registry
-            $regPath = switch -Regex ($item.Location) {
-                'HKU\\.*\\Run' { 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run' }
-                'HKLM\\.*\\Run' { 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run' }
-                'Startup' { 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\StartupFolder' }
-                default { $null }
-            }
-            
-            $status = 'enabled'  # Default to enabled
-            if ($regPath) {
-                $approvedStatus = Get-ItemProperty -Path $regPath -Name $name -ErrorAction SilentlyContinue
-                if ($approvedStatus) {
-                    $bytes = [byte[]]($approvedStatus.$name)
-                    $status = if ($bytes -and $bytes[0] -eq 3) { 'disabled' } else { 'enabled' }
-                }
-            }
-            
-            $items += [PSCustomObject]@{
-                Name = $name
-                RegistryName = $name
-                Command = $resolvedCommand
-                Source = $item.Location
-                Status = $status
-                Publisher = Get-FilePublisher -filePath $resolvedCommand
-                Safety = Get-SafetyRating -name $name -command $resolvedCommand -source $item.Location
-                Description = $item.Description
-            }
-        }
-    } catch {
-        Write-Error "Failed to get WMI startup items: $_"
-        # Don't return here, continue with other startup locations
-    }
 
-    # 2. Startup Folder Items
-    $startupFolders = @(
-        "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup",
-        "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\StartUp"
+    # Registry entries
+    $regSources = @(
+        @{ Path = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'; Hive = 'HKCU' },
+        @{ Path = 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Run'; Hive = 'HKLM' }
     )
 
-    foreach ($folder in $startupFolders) {
+    foreach ($src in $regSources) {
+        $entries = Get-ItemProperty -Path $src.Path
+        foreach ($prop in $entries.PSObject.Properties) {
+            if ($prop.Name -like 'PS*') { continue }
+
+            $name = $prop.Name
+            $command = $prop.Value.Trim('"')
+            $exeName = Normalize-ExeName $command
+
+            $items += [PSCustomObject]@{
+                Name        = $name
+                RegistryName= $name
+                Command     = $command
+                Source      = $src.Path
+                Status      = Get-RegistryStatus -registryName $name -exeName $exeName
+                Publisher   = Get-FilePublisher -filePath $command
+                Safety      = Get-SafetyRating -name $name -command $command
+                Description = 'Registry startup'
+            }
+        }
+    }
+
+    # Startup folders
+    $folders = @(
+        "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup",
+        "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Startup"
+    )
+
+    foreach ($folder in $folders) {
         if (Test-Path $folder) {
-            Get-ChildItem -Path $folder -File | ForEach-Object {
-                $resolvedPath = Resolve-ShortcutTarget -shortcutPath $_.FullName
+            Get-ChildItem -Path $folder -Filter *.lnk | ForEach-Object {
+                $target = Resolve-ShortcutTarget $_.FullName
+                $exeName = Normalize-ExeName $target
                 $items += [PSCustomObject]@{
-                    Name = $_.BaseName
-                    RegistryName = $_.Name
-                    Command = $resolvedPath
-                    Source = 'Startup'
-                    Status = 'enabled'
-                    Publisher = Get-FilePublisher -filePath $resolvedPath
-                    Safety = Get-SafetyRating -name $_.BaseName -command $resolvedPath -source 'Startup'
-                    Description = "Startup folder item"
+                    Name        = $_.BaseName
+                    RegistryName= $_.Name
+                    Command     = $target
+                    Source      = 'Startup'
+                    Status      = Get-RegistryStatus -registryName $_.Name -exeName $exeName
+                    Publisher   = Get-FilePublisher -filePath $target
+                    Safety      = Get-SafetyRating -name $_.BaseName -command $target
+                    Description = 'Startup folder item'
                 }
             }
         }
     }
 
-    # Sort items by safety rating (safe -> caution -> danger)
-    $safetyOrder = @{
-        'safe' = 1
-        'caution' = 2
-        'danger' = 3
+    # Deduplication
+    $seen = @{}
+    $deduped = @()
+    foreach ($item in $items) {
+        $key = "$($item.RegistryName.ToLowerInvariant())|$(Normalize-ExeName $item.Command)"
+        if (-not $seen.ContainsKey($key)) {
+            $seen[$key] = $true
+            $deduped += $item
+        }
     }
-    
-    $items = $items | Sort-Object { $safetyOrder[$_.Safety] }
 
-    return $items
+    return $deduped
 }
 
-# Get and return startup programs
 $startupPrograms = Get-StartupPrograms
-$startupPrograms | ConvertTo-Json
-
+$startupPrograms | ConvertTo-Json -Depth 4 | Out-File -Encoding UTF8 "$env:TEMP\startup_programs.json"
