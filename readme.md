@@ -4,7 +4,7 @@
 
 **🚀 A Modern Windows System Optimization & Management Tool**
 
-[![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)](https://github.com/user/pc-buddy/releases)
+[![Version](https://img.shields.io/badge/version-0.2.0-blue.svg)](https://github.com/user/pc-buddy/releases)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows-lightgrey.svg)](https://www.microsoft.com/windows)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D16.0.0-brightgreen.svg)](https://nodejs.org/)
