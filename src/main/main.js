@@ -1,61 +1,70 @@
-// Verbose autoUpdater logging to AppData\Roaming\PC Buddy\updater.log
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
-const { exec, spawn } = require('child_process');
-const sudo = require('sudo-prompt');
 const { autoUpdater } = require('electron-updater');
 const fs = require('fs');
+const sudo = require('sudo-prompt');
+const { spawn, exec } = require('child_process');
 const os = require('os');
 
-// Logging setup
-const logDir = app.getPath('userData');
-const logFilePath = path.join(logDir, 'updater.log');
-fs.writeFileSync(logFilePath, '', 'utf8'); // clear log on each run
+
+// Log to AppData/Roaming/PC Buddy/updater.log
+const logFile = path.join(app.getPath('userData'), 'updater.log');
+fs.writeFileSync(logFile, ''); // clear at startup
+
 function log(...args) {
-  const message = `[${new Date().toISOString()}] ` + args.join(' ') + '\n';
+  const msg = `[${new Date().toISOString()}] ${args.join(' ')}\n`;
   console.log(...args);
-  fs.appendFileSync(logFilePath, message, 'utf8');
+  fs.appendFileSync(logFile, msg);
 }
 
-log('[Updater] App version (package.json):', app.getVersion());
-autoUpdater.logger = {
-  info: log,
-  warn: log,
-  error: log,
-  debug: log
-};
+autoUpdater.logger = { info: log, warn: log, error: log, debug: log };
 
-const options = { name: 'PC Buddy' };
+let mainWindow;
 
 function createWindow() {
-  const win = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      enableRemoteModule: false,
       sandbox: false
     }
   });
 
-  win.loadFile(path.join(__dirname, '../renderer/index.html'));
+  mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
 
-  win.webContents.once('did-finish-load', () => {
-    log('[Updater] Current app version:', app.getVersion());
-    log('[Updater] electron-updater version:', autoUpdater.currentVersion.version);
-    autoUpdater.checkForUpdatesAndNotify();
+  mainWindow.webContents.on('did-finish-load', () => {
+    log('[Updater] Checking for updates...');
+    autoUpdater.checkForUpdates();
   });
 }
 
-// Auto updater event logs
-autoUpdater.on('checking-for-update', () => log('[Updater] Checking for update...'));
-autoUpdater.on('update-available', info => log('[Updater] Update available:', info.version));
-autoUpdater.on('update-not-available', () => log('[Updater] No update available.'));
-autoUpdater.on('error', err => log('[Updater] Error:', err));
-autoUpdater.on('download-progress', p => log(`[Updater] Downloading: ${Math.round(p.percent)}%`));
-autoUpdater.on('update-downloaded', () => log('[Updater] Update downloaded. Will install on quit.'));
+// Update events
+autoUpdater.on('update-available', (info) => {
+  log('[Updater] Update available:', info.version);
+  mainWindow.webContents.send('update-available', info.version);
+});
+
+autoUpdater.on('update-not-available', () => {
+  log('[Updater] No update available.');
+});
+
+autoUpdater.on('download-progress', (progress) => {
+  log(`[Updater] Download progress: ${Math.round(progress.percent)}%`);
+  mainWindow.webContents.send('update-download-progress', progress);
+});
+
+autoUpdater.on('update-downloaded', () => {
+  log('[Updater] Update downloaded, prompting user to install.');
+  mainWindow.webContents.send('update-downloaded');
+});
+
+ipcMain.on('start-update', () => {
+  log('[Updater] User confirmed install. Quitting and installing.');
+  autoUpdater.quitAndInstall();
+});
 
 app.whenReady().then(createWindow);
 

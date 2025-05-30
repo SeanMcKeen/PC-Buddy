@@ -7,7 +7,11 @@ const { execFile } = require('child_process');
 
 contextBridge.exposeInMainWorld('electronAPI', {
   runSystemRepair: () => ipcRenderer.invoke('run-sfc-and-dism'),
-  runDiskCleanup: () => ipcRenderer.invoke('run-disk-cleanup')
+  runDiskCleanup: () => ipcRenderer.invoke('run-disk-cleanup'),
+  onUpdateAvailable: (cb) => ipcRenderer.on('update-available', (_, version) => cb(version)),
+  onDownloadProgress: (cb) => ipcRenderer.on('update-download-progress', (_, progress) => cb(progress)),
+  onUpdateDownloaded: (cb) => ipcRenderer.on('update-downloaded', () => cb()),
+  startUpdate: () => ipcRenderer.send('start-update'),
 });
 
 contextBridge.exposeInMainWorld('systemInfoAPI', {
