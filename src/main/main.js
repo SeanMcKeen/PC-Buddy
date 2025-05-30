@@ -79,26 +79,26 @@ function getScriptPath(scriptName) {
 
 // System repair handler
 ipcMain.handle('run-sfc-and-dism', async () => {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     sudo.exec('sfc /scannow', options, (sfcErr, sfcOut, sfcErrOut) => {
       const output = sfcOut + sfcErrOut;
       const needsDism = /unable to fix/i.test(output);
 
       if (sfcErr) {
         log('[SFC Error]', sfcErr);
-        return resolve('System scan failed. Please try again later.');
+        return reject(new Error('System scan failed. Please try running as administrator.'));
       }
 
       if (needsDism) {
         sudo.exec('DISM /Online /Cleanup-Image /RestoreHealth', options, (dismErr) => {
           if (dismErr) {
             log('[DISM Error]', dismErr);
-            return resolve('SFC found problems but DISM failed.');
+            return reject(new Error('SFC found problems but DISM repair failed.'));
           }
-          return resolve('SFC found problems. DISM repair attempted.');
+          return resolve('SFC found problems. DISM repair completed successfully.');
         });
       } else {
-        return resolve('SFC completed successfully.');
+        return resolve('SFC scan completed successfully. No problems found.');
       }
     });
   });
@@ -232,6 +232,234 @@ ipcMain.handle('get-disk-usage', async () => {
         log('[stdout]', stdout);
         reject(parseError);
       }
+    });
+  });
+});
+
+// Helper function to get current backup path
+async function getCurrentBackupPath() {
+  return new Promise((resolve, reject) => {
+    // Use Windows reg command to query the registry (matches how we write it)
+    const regCommand = `reg query "HKCU\\Software\\PC-Buddy" /v BackupLocation 2>nul`;
+    
+    exec(regCommand, (error, stdout, stderr) => {
+      if (error) {
+        log('[getCurrentBackupPath] Registry query failed:', error);
+        // Fallback to JavaScript default
+        const os = require('os');
+        const path = require('path');
+        const defaultPath = path.join(os.homedir(), 'Documents', 'PC-Buddy-Backups');
+        log('[getCurrentBackupPath] Using JavaScript fallback:', defaultPath);
+        resolve(defaultPath);
+      } else {
+        log('[getCurrentBackupPath] Registry query stdout:', JSON.stringify(stdout));
+        
+        // Parse the reg query output - try multiple patterns
+        // Pattern 1: "    BackupLocation    REG_SZ    C:\path\here"
+        let match = stdout.match(/BackupLocation\s+REG_SZ\s+(.+?)(?:\s*$|\r|\n)/m);
+        
+        // Pattern 2: Try simpler pattern if first fails
+        if (!match) {
+          match = stdout.match(/REG_SZ\s+(.+?)(?:\s*$|\r|\n)/m);
+        }
+        
+        if (match && match[1] && match[1].trim()) {
+          const registryPath = match[1].trim();
+          log('[getCurrentBackupPath] Found registry path:', registryPath);
+          resolve(registryPath);
+        } else {
+          // No registry value found, use default
+          const os = require('os');
+          const path = require('path');
+          const defaultPath = path.join(os.homedir(), 'Documents', 'PC-Buddy-Backups');
+          log('[getCurrentBackupPath] No registry value found in output, using default:', defaultPath);
+          resolve(defaultPath);
+        }
+      }
+    });
+  });
+}
+
+// Backup Management Handlers
+ipcMain.handle('create-backup', async () => {
+  return new Promise(async (resolve, reject) => {
+    try {
+      const backupPath = await getCurrentBackupPath();
+      const scriptPath = getScriptPath('createBackup.ps1');
+      const command = `powershell -NoProfile -ExecutionPolicy Bypass -File "${scriptPath}" -BackupLocation "${backupPath}"`;
+      
+      log('[create-backup] Running command:', command);
+      log('[create-backup] Using backup path:', backupPath);
+      
+      sudo.exec(command, options, (error, stdout, stderr) => {
+        if (error) {
+          log('[create-backup] Error:', error);
+          log('[create-backup] Stderr:', stderr);
+          return reject(new Error(`Backup failed: ${error.message}`));
+        }
+        
+        log('[create-backup] Success:', stdout);
+        resolve(stdout.trim());
+      });
+    } catch (pathError) {
+      log('[create-backup] Path error:', pathError);
+      reject(new Error(`Failed to get backup path: ${pathError.message}`));
+    }
+  });
+});
+
+ipcMain.handle('get-backup-info', async () => {
+  return new Promise(async (resolve, reject) => {
+    try {
+      const backupPath = await getCurrentBackupPath();
+      const scriptPath = getScriptPath('getBackupInfo.ps1');
+      const command = `powershell -NoProfile -ExecutionPolicy Bypass -File "${scriptPath}" -BackupLocation "${backupPath}"`;
+
+      log('[get-backup-info] Running command:', command);
+      log('[get-backup-info] Using backup path:', backupPath);
+
+      exec(command, (error, stdout, stderr) => {
+        if (error) {
+          log('[get-backup-info] PowerShell exec error:', error);
+          return reject(error);
+        }
+
+        try {
+          const data = JSON.parse(stdout);
+          resolve(data);
+        } catch (parseError) {
+          log('[get-backup-info] JSON parse error:', parseError);
+          log('[stdout]', stdout);
+          reject(parseError);
+        }
+      });
+    } catch (pathError) {
+      log('[get-backup-info] Path error:', pathError);
+      reject(new Error(`Failed to get backup path: ${pathError.message}`));
+    }
+  });
+});
+
+ipcMain.handle('open-backup-location', async () => {
+  return new Promise(async (resolve, reject) => {
+    try {
+      const backupLocation = await getCurrentBackupPath();
+      
+      // Create the directory if it doesn't exist
+      const fs = require('fs');
+      if (!fs.existsSync(backupLocation)) {
+        fs.mkdirSync(backupLocation, { recursive: true });
+      }
+      
+      // Open the backup location in Explorer
+      exec(`start "" "${backupLocation}"`, (error) => {
+        if (error) {
+          log('[open-backup-location] Error opening explorer:', error);
+          return reject(new Error('Failed to open backup location'));
+        }
+        resolve(`Opened backup location: ${backupLocation}`);
+      });
+      
+    } catch (error) {
+      log('[open-backup-location] Error:', error);
+      reject(new Error('Failed to determine backup location'));
+    }
+  });
+});
+
+// Backup path selection handler
+ipcMain.handle('select-backup-path', async () => {
+  const { dialog } = require('electron');
+  
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: 'Select Backup Location',
+    properties: ['openDirectory', 'createDirectory'],
+    buttonLabel: 'Select Folder'
+  });
+  
+  if (!result.canceled && result.filePaths.length > 0) {
+    const selectedPath = result.filePaths[0];
+    log('[select-backup-path] User selected path:', selectedPath);
+    
+    // Save the selected path to registry using a simpler registry command
+    try {
+      const regCommand = `reg add "HKCU\\Software\\PC-Buddy" /v BackupLocation /t REG_SZ /d "${selectedPath}" /f`;
+      
+      return new Promise((resolve, reject) => {
+        exec(regCommand, (error, stdout, stderr) => {
+          if (error) {
+            log('[select-backup-path] Registry command error:', error);
+            log('[select-backup-path] stderr:', stderr);
+            return reject(new Error('Failed to save backup location'));
+          }
+          
+          log('[select-backup-path] Registry command success:', stdout);
+          log('[select-backup-path] Successfully saved path:', selectedPath);
+          resolve(selectedPath);
+        });
+      });
+    } catch (error) {
+      log('[select-backup-path] Error:', error);
+      throw new Error('Failed to save backup location');
+    }
+  } else {
+    throw new Error('No folder selected');
+  }
+});
+
+// Get current backup path
+ipcMain.handle('get-backup-path', async () => {
+  return new Promise((resolve, reject) => {
+    // Use Windows reg command to query the registry (matches how we write it)
+    const regCommand = `reg query "HKCU\\Software\\PC-Buddy" /v BackupLocation 2>nul`;
+    
+    exec(regCommand, (error, stdout, stderr) => {
+      if (error) {
+        log('[get-backup-path] Registry query failed:', error);
+        // Fallback to JavaScript default
+        const os = require('os');
+        const path = require('path');
+        const defaultPath = path.join(os.homedir(), 'Documents', 'PC-Buddy-Backups');
+        log('[get-backup-path] Using JavaScript fallback:', defaultPath);
+        resolve(defaultPath);
+      } else {
+        log('[get-backup-path] Registry query stdout:', JSON.stringify(stdout));
+        
+        // Parse the reg query output - try multiple patterns
+        // Pattern 1: "    BackupLocation    REG_SZ    C:\path\here"
+        let match = stdout.match(/BackupLocation\s+REG_SZ\s+(.+?)(?:\s*$|\r|\n)/m);
+        
+        // Pattern 2: Try simpler pattern if first fails
+        if (!match) {
+          match = stdout.match(/REG_SZ\s+(.+?)(?:\s*$|\r|\n)/m);
+        }
+        
+        if (match && match[1] && match[1].trim()) {
+          const registryPath = match[1].trim();
+          log('[get-backup-path] Found registry path:', registryPath);
+          resolve(registryPath);
+        } else {
+          // No registry value found, use default
+          const os = require('os');
+          const path = require('path');
+          const defaultPath = path.join(os.homedir(), 'Documents', 'PC-Buddy-Backups');
+          log('[get-backup-path] No registry value found in output, using default:', defaultPath);
+          resolve(defaultPath);
+        }
+      }
+    });
+  });
+});
+
+// Run PowerShell command handler
+ipcMain.handle('run-powershell-command', async (event, command) => {
+  return new Promise((resolve, reject) => {
+    exec(`powershell -NoProfile -ExecutionPolicy Bypass -Command "${command}"`, (error, stdout, stderr) => {
+      if (error) {
+        log('[run-powershell-command] Error:', error);
+        return reject(new Error(stderr || error.message));
+      }
+      resolve(stdout.trim());
     });
   });
 });

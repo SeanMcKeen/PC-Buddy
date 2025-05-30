@@ -4,12 +4,12 @@
 
 **🚀 A Modern Windows System Optimization & Management Tool**
 
-[![Version](https://img.shields.io/badge/version-0.2.0-blue.svg)](https://github.com/user/pc-buddy/releases)
+[![Version](https://img.shields.io/badge/version-0.2.0-blue.svg)](https://github.com/SeanMcKeen/pc-buddy/releases)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows-lightgrey.svg)](https://www.microsoft.com/windows)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D16.0.0-brightgreen.svg)](https://nodejs.org/)
 
-[Features](#-features) • [Installation](#-installation) • [Usage](#-usage) • [Tech Stack](#-tech-stack) • [Contributing](#-contributing)
+[Features](#-features) • [Installation](#-installation) • [Usage](#-usage) • [Tech Stack](#-tech-stack)
 
 </div>
 
@@ -17,300 +17,113 @@
 
 ## 📋 Overview
 
-PC Buddy is a **comprehensive Windows system optimization tool** built with Electron that transforms complex system maintenance into simple, one-click operations. Whether you're a system administrator managing multiple machines or a home user wanting to keep your PC running smoothly, PC Buddy provides an intuitive interface for essential Windows maintenance tasks.
+PC Buddy is a **comprehensive Windows system optimization tool** built with Electron that transforms complex system maintenance into simple, one-click operations. Whether you're managing multiple machines or keeping your personal PC running smoothly, PC Buddy provides an intuitive interface for essential Windows maintenance tasks.
 
 **🎯 Key Benefits:**
 - **One-Click System Repairs** - Automated SFC and DISM operations
-- **Smart Startup Management** - Safely optimize boot performance  
-- **Visual Disk Monitoring** - Real-time space usage and cleanup
+- **Smart Startup Management** - Safely optimize boot performance with color-coded safety ratings
+- **Visual Disk Monitoring** - Real-time space usage with progress bars and cleanup
 - **Quick Access Hub** - Essential Windows settings at your fingertips
-- **Custom Productivity** - Personalized shortcuts with emoji icons
+- **Custom Shortcuts** - Personalized shortcuts with emoji icons (200+ emojis across 8 categories)
 
 ## ✨ Features
 
 ### 🔧 System Health & Repair
-Transform your PC maintenance with intelligent automation:
+- **Automated SFC/DISM**: Intelligent workflow runs both tools in sequence for complete system healing
+- **System Dashboard**: Real-time OS info, CPU, RAM, uptime, and computer details
+- **Progress Tracking**: Visual status updates with estimated completion times
 
-**🔍 Automated Diagnostics**
-- **System File Checker (SFC)**: Scans and repairs corrupted Windows files
-- **DISM Integration**: Automatically triggered when SFC finds unfixable issues  
-- **Smart Workflow**: Runs both tools in sequence for complete system healing
-- **Progress Tracking**: Real-time status updates with estimated completion times
-
-**📊 System Intelligence Dashboard**
-```
-💻 System Info Display:
-├── 🖥️  OS Version & Build
-├── ⚙️  CPU Model & Architecture  
-├── 🧠 RAM (Total/Available)
-├── 🏠 Computer Name
-└── ⏱️  System Uptime
-```
-
-### 🚀 Startup Optimization
-Take control of your boot sequence with safety-first design:
-
-**🎛️ Smart Program Management**
-- **Visual Toggle Controls**: Modern switches replace confusing enable/disable buttons
-- **Color-Coded Safety System**:
-  - 🟢 **Safe** - Programs you can safely disable (Spotify, Discord, etc.)
-  - 🟡 **Caution** - May impact functionality (Graphics drivers, office tools)
-  - 🔴 **Danger** - Critical system components (Windows Security, Audio drivers)
-
-**🛡️ Protection Features**
-- **Confirmation Dialogs**: Double-confirmation before disabling critical items
-- **Impact Warnings**: Clear explanations of what each program does
+### 🚀 Startup Optimization  
+- **Safety-First Design**: Color-coded ratings (🟢 Safe, 🟡 Caution, 🔴 Danger)
+- **Modern Toggle Switches**: Sleek controls with confirmation dialogs for critical items
 - **Task Manager Integration**: Quick access for advanced users
-- **Instant Apply**: Changes take effect immediately, no restart required
 
-### 💾 Intelligent Disk Management
-Monitor and optimize storage with visual clarity:
-
-**📈 Real-Time Monitoring**
-- **Visual Progress Bars**: See exactly how much space each drive is using
-- **Multi-Drive Support**: Manage all connected drives from one interface
-- **Smart Recommendations**: Automatically suggests which drive needs attention
-- **Usage Breakdown**: Understand what's taking up your space
-
-**🧹 Deep Cleaning Engine**
-```
-Cleanup Targets:
-├── 🗑️  Temporary Files (%TEMP%, Windows\Temp)
-├── 🌐 Browser Cache (Chrome, Edge, Firefox)
-├── 📦 Windows Update Cache
-├── 🔄 System Log Files
-└── 💾 Recycle Bin Contents
-```
+### 💾 Visual Disk Management
+- **Real-Time Progress Bars**: Color-coded usage visualization (Green/Orange/Red)
+- **Individual Drive Cards**: Clean any drive with dedicated buttons
+- **Smart Recommendations**: System drive highlighted with special badges
+- **Auto-Refresh**: Usage updates automatically after cleanup
 
 ### ⚡ Quick Access Shortcuts
-Your Windows control center in one place:
-
-**📁 Essential Folders Hub**
-- **AppData** - Access application data and settings
-- **Downloads** - Jump to your download folder instantly  
-- **Documents** - Quick access to user documents
-- **Desktop** - Navigate to desktop items
-
-**🔧 System Settings Central**
-- **Control Panel** - Classic Windows configuration
-- **Programs & Features** - Uninstall/modify software
-- **Device Manager** - Hardware management
-- **System Properties** - Computer specifications and settings
-
-**🌐 Network & Connectivity**
-- **Network Settings** - Ethernet and WiFi configuration
-- **WiFi Management** - Wireless network preferences
-- **Display Settings** - Monitor configuration and resolution
-- **Sound Settings** - Audio devices and volume control
-- **Windows Update** - Check for and install updates
+- **Essential Folders**: AppData, Downloads, Documents, Desktop
+- **System Settings**: Control Panel, Device Manager, Programs & Features, System Properties
+- **Network & Internet**: WiFi, Display, Sound, Windows Update settings
 
 ### ✨ Custom Shortcuts System
-Create your personal productivity launcher:
+- **Emoji Icons**: 200+ emojis across 8 categories (Smileys, People, Animals, Food, Activities, Travel, Objects, Symbols)
+- **Smart Path Recognition**: Files, folders, websites, system commands
+- **Persistent Storage**: Shortcuts survive app restarts
+- **Full CRUD**: Create, edit, delete with hover actions
 
-**🎨 Emoji-Powered Organization**
-```
-📂 Folder Categories:
-├── 😀 Smileys & Emotion (30+ options)
-├── 👤 People & Body (30+ options)  
-├── 🐶 Animals & Nature (30+ options)
-├── 🍎 Food & Drink (30+ options)
-├── ⚽ Activities & Sports (30+ options)
-├── 🚗 Travel & Places (30+ options)
-├── 💡 Objects & Tools (30+ options)
-└── ❤️ Symbols & Flags (30+ options)
-```
-
-**🔧 Smart Path Recognition**
-- **File Paths**: `C:\Program Files\Notepad++\notepad++.exe`
-- **Folder Paths**: `C:\Users\%USERNAME%\Pictures`  
-- **Websites**: `https://github.com`, `https://google.com`
-- **System Commands**: `cmd`, `notepad`, `calc`
-
-**💾 Persistent Storage**
-- Shortcuts saved to local storage
-- Survive app restarts and updates
-- Export/import capability for backup
-- No cloud dependency required
-
-### 🔄 Professional Auto-Update System
-Stay current with zero effort:
-
-**📱 Modern Notification Cards**
-- **Elegant Design**: Top-right notification cards with gradient styling
-- **Interactive States**: 
-  - 📥 **Available** - New version ready to download
-  - ⬇️ **Downloading** - Progress bar with percentage
-  - ✅ **Ready** - Downloaded and ready to install
-  - ⚙️ **Installing** - Update in progress with restart warning
-
-**🎛️ User Control Options**
-- **Defer Updates**: Download now, install later
-- **Immediate Install**: Apply updates instantly
-- **Progress Tracking**: Real-time download progress
-- **Dismiss Capability**: Hide notifications if not ready
-
-### 🎨 Modern User Interface
-Experience desktop software that feels native and responsive:
-
-**📱 Responsive Masonry Layout**
-- **Pinterest-Style Grid**: Cards automatically arrange for optimal viewing
-- **Hardware Acceleration**: Smooth 60fps animations using CSS transforms
-- **Smart Resizing**: Layout adapts to window size changes instantly
-- **Performance Optimized**: Efficient rendering with minimal resource usage
-
-**🎭 Smooth Interaction Design**
-- **Loading Screen**: Professional startup with animated logo and progress dots
-- **Tab Transitions**: Smooth fade animations between sections
-- **Hover Effects**: Subtle card elevations and color changes
-- **Responsive Feedback**: Visual confirmation for all user actions
-
-**🌓 Modern Aesthetics**
-- **Dark Sidebar**: Sleek navigation with collapsible design
-- **Light Content Area**: High contrast for optimal readability
-- **Consistent Spacing**: Professional typography and spacing
-- **Windows Integration**: Respects system theme and scaling
+### 🎨 Modern Interface
+- **Pinterest-Style Layout**: Responsive masonry grid with hardware acceleration
+- **Smooth Animations**: 60fps transitions with loading screens
+- **Auto-Update Notifications**: Beautiful top-right cards with progress tracking
+- **Professional Design**: Dark sidebar with collapsible navigation
 
 ## 🚀 Installation
 
 ### Prerequisites
-- **Windows 10** or **Windows 11** (64-bit)
-- **Node.js 16.0.0+** ([Download here](https://nodejs.org/))
+- **Windows 10/11** (64-bit)
+- **Node.js 16.0+** ([Download](https://nodejs.org/))
 - **Administrator privileges** (for system repair functions)
 
 ### Quick Start
 ```bash
-# 1. Clone the repository
-git clone https://github.com/user/pc-buddy.git
+# Clone repository
+git clone https://github.com/SeanMcKeen/pc-buddy.git
 cd pc-buddy
 
-# 2. Install dependencies
+# Install dependencies
 npm install
 
-# 3. Launch the application
+# Launch application
 npm start
 ```
 
-### Building for Production
+### Building
 ```bash
 # Development build
 npm run build
 
-# Windows installer (.exe)
+# Windows installer
 npm run dist
-
-# Portable version (.zip)  
-npm run build:portable
 ```
 
-## 📖 Usage Guide
+## 📖 Usage
 
-### 🔧 System Repair Workflow
-```
-1. Launch PC Buddy
-2. Navigate to "System Health" tab
-3. Review system information panel
-4. Click "Start Scan" for automated repair
-5. Monitor progress with real-time updates
-6. Review completion report
-```
+### System Repair
+1. Navigate to **System Health** tab
+2. Click **Start Scan** for automated SFC/DISM repair
+3. Monitor real-time progress with status updates
 
-### 🚀 Startup Optimization Process
-```
-1. Open "System Health" section
-2. Scroll to "Startup Optimizer"
-3. Review safety badges for each program:
-   🟢 Safe to disable
-   🟡 Proceed with caution  
-   🔴 Keep enabled (critical)
-4. Use toggle switches to enable/disable
-5. Confirm dangerous operations when prompted
-```
+### Startup Management
+1. View startup programs with safety badges
+2. Use toggle switches to enable/disable programs
+3. Confirm dangerous operations when prompted
 
-### ✨ Custom Shortcut Creation
-```
-1. Switch to "Shortcuts" tab
-2. Locate "Custom Shortcuts" section
-3. Click "Add Custom Shortcut"
-4. Select emoji icon from picker
-5. Enter shortcut name (25 chars max)
-6. Specify target:
-   • File: C:\path\to\program.exe
-   • Folder: C:\Users\%USERNAME%\Documents
-   • Website: https://example.com
-7. Save and test shortcut
-```
+### Disk Cleanup
+1. View all drives with visual usage bars
+2. Click **Clean Drive** on desired drive
+3. Confirm cleanup operation
 
-### 💾 Disk Cleanup Operation
-```
-1. Navigate to "System Health"
-2. Find "Disk Usage & Cleanup" 
-3. Review drive usage visualization
-4. Click "Choose Drive to Clean"
-5. Select target drive (C: recommended)
-6. Confirm cleanup operation
-7. Monitor progress and completion
-```
+### Custom Shortcuts
+1. Go to **Shortcuts** tab → **Custom Shortcuts**
+2. Click **Add Custom Shortcut**
+3. Choose emoji icon and enter name/path
+4. Save and use immediately
 
 ## 🛠️ Tech Stack
 
-### Core Framework
-- **[Electron 22+](https://electronjs.org/)** - Cross-platform desktop applications
-- **[Node.js 16+](https://nodejs.org/)** - JavaScript runtime environment
+- **[Electron 22+](https://electronjs.org/)** - Cross-platform desktop framework
+- **[Node.js 16+](https://nodejs.org/)** - JavaScript runtime
 - **[PowerShell 5.1+](https://docs.microsoft.com/powershell/)** - Windows automation
-
-### Frontend Technologies  
-- **Vanilla JavaScript (ES6+)** - Modern language features
-- **CSS3 Grid & Flexbox** - Responsive layout systems
-- **CSS Custom Properties** - Dynamic theming support
-- **Web Animations API** - Hardware-accelerated transitions
-
-### Key Libraries
+- **Vanilla JavaScript** - Modern ES6+ features
+- **CSS3** - Hardware-accelerated animations and responsive design
 - **electron-updater** - Automatic application updates
-- **sudo-prompt** - Elevated permission management  
-- **os** - Operating system interface
-- **child_process** - System command execution
-
-### Architecture Patterns
-- **Main Process** - System integration and security
-- **Renderer Process** - User interface and interactions
-- **IPC Communication** - Secure inter-process messaging
-- **Context Isolation** - Enhanced security model
-
-## 🏗️ Project Structure
-
-```
-PC-Buddy/
-├── 📁 src/
-│   ├── 📁 main/
-│   │   ├── 📄 main.js           # Electron main process
-│   │   └── 📄 preload.js        # Secure API bridge
-│   ├── 📁 renderer/
-│   │   ├── 📄 index.html        # Application UI
-│   │   ├── 📄 styles.css        # Modern CSS styling
-│   │   └── 📄 renderer.js       # Frontend logic
-│   └── 📁 assets/
-│       ├── 📄 getStartupPrograms.ps1  # Startup enumeration
-│       ├── 📄 toggleStartup.ps1       # Startup control  
-│       ├── 📄 deepClean.ps1           # Disk cleanup
-│       └── 📄 getDiskUsage.ps1        # Storage analysis
-├── 📁 docs/                     # Documentation
-├── 📄 package.json             # Dependencies & scripts
-├── 📄 README.md                # This file
-└── 📄 LICENSE                  # MIT License
-```
+- **sudo-prompt** - Elevated permission management
 
 ## 🔧 Configuration
-
-### Auto-updater Setup
-```javascript
-// Configure GitHub releases for updates
-autoUpdater.setFeedURL({
-  provider: 'github',
-  owner: 'your-username', 
-  repo: 'pc-buddy',
-  private: false
-});
-```
 
 ### PowerShell Execution Policy
 ```powershell
@@ -318,46 +131,31 @@ autoUpdater.setFeedURL({
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 ```
 
-### Custom Shortcuts Storage
+### Auto-updater Setup
 ```javascript
-// Shortcuts persist in localStorage
-const shortcuts = JSON.parse(
-  localStorage.getItem('customShortcuts') || '[]'
-);
+autoUpdater.setFeedURL({
+  provider: 'github',
+  owner: 'SeanMcKeen',
+  repo: 'PC-Buddy'
+});
 ```
 
 ## 🤝 Contributing
 
-We welcome contributions from the community! Here's how to get started:
+1. **Fork** the repository
+2. **Create** a feature branch (`git checkout -b feature/amazing-feature`)
+3. **Commit** changes (`git commit -m 'Add amazing feature'`)
+4. **Push** to branch (`git push origin feature/amazing-feature`)
+5. **Open** a Pull Request
 
-### Development Workflow
-```bash
-# 1. Fork and clone
-git clone https://github.com/your-username/pc-buddy.git
-
-# 2. Create feature branch  
-git checkout -b feature/amazing-feature
-
-# 3. Make changes and test
-npm start
-
-# 4. Commit with descriptive message
-git commit -m "Add amazing feature that does X"
-
-# 5. Push and create PR
-git push origin feature/amazing-feature
-```
-
-### Contribution Guidelines
-- **Code Style**: Follow existing patterns and conventions
-- **Testing**: Test on Windows 10 and 11 before submitting
-- **Documentation**: Update README for new features
-- **Performance**: Ensure smooth 60fps animations
-- **Security**: Use proper IPC communication patterns
+### Guidelines
+- Follow existing code patterns
+- Test on Windows 10 and 11
+- Update documentation for new features
+- Ensure smooth 60fps animations
 
 ## 🐛 Troubleshooting
 
-### Common Issues
 ```
 ❌ "Access Denied" during system repair
 ✅ Solution: Run as Administrator
@@ -366,58 +164,42 @@ git push origin feature/amazing-feature
 ✅ Solution: Set-ExecutionPolicy RemoteSigned
 
 ❌ Antivirus blocks application
-✅ Solution: Add PC Buddy to exclusions list
+✅ Solution: Add PC Buddy to exclusions
 
 ❌ Startup changes not applying
 ✅ Solution: Restart Windows Explorer
 ```
 
-### Debug Mode
-```bash
-# Enable verbose logging
-npm start -- --debug
+## 📝 Version History
 
-# Check log files
-%APPDATA%/PC Buddy/logs/
-```
+### 0.2.0 (Current)
+- ✨ Modern disk cleanup with visual progress bars
+- 🎨 Refactored drive selection (removed clunky modal)
+- 🚀 Enhanced startup management with safety ratings
+- 💾 Auto-refresh disk usage after cleanup
+- 🎭 Improved animations and loading screens
 
-## 📝 Roadmap
+### 0.1.3
+- 🔧 Added system repair utilities
+- 📊 Real-time system information
+- 🎨 Modern UI design
 
-### Version 2.1.0 (Planned)
-- 🔄 **Registry Cleanup** - Safe registry optimization
-- 📊 **Performance Metrics** - CPU/RAM usage tracking
-- 🎨 **Theme Customization** - Light/dark mode toggle
-- 🌐 **Multi-language Support** - Localization framework
+## 👨‍💻 Author & License
 
-### Version 2.2.0 (Future)
-- ☁️ **Cloud Sync** - Settings backup to cloud
-- 📱 **Mobile Companion** - Remote PC management
-- 🤖 **AI Optimization** - Machine learning recommendations
-- 📈 **Advanced Analytics** - Detailed system insights
+**Created by Sean McKeen**
 
-## 📄 License
+This project is licensed under the **MIT License** - see [LICENSE](LICENSE) for details.
 
-This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
+### ⚠️ Attribution Notice
+If you use this software, please:
+- **Keep the author credit intact** 
+- **Do not claim this work as your own**
+- **Respect the open-source nature** of this project
 
-## 🙏 Acknowledgments
+## 📞 Support
 
-- **Microsoft** - For PowerShell and Windows APIs
-- **Electron Team** - For the incredible cross-platform framework  
-- **Open Source Community** - For inspiration and feedback
-- **Beta Testers** - For helping improve reliability and usability
-
-## 📞 Support & Community
-
-### Get Help
-- 📧 **Email**: support@pc-buddy.app
-- 🐛 **Bug Reports**: [GitHub Issues](https://github.com/user/pc-buddy/issues)
-- 💡 **Feature Requests**: [GitHub Discussions](https://github.com/user/pc-buddy/discussions)
-- 📖 **Documentation**: [Wiki](https://github.com/user/pc-buddy/wiki)
-
-### Community
-- 💬 **Discord**: [PC Buddy Community](https://discord.gg/pc-buddy)
-- 🐦 **Twitter**: [@PCBuddyApp](https://twitter.com/PCBuddyApp)
-- 📺 **YouTube**: [PC Buddy Tutorials](https://youtube.com/c/PCBuddy)
+- 📧 **Issues**: [GitHub Issues](https://github.com/SeanMcKeen/pc-buddy/issues)
+- 📖 **Documentation**: [Wiki](https://github.com/SeanMcKeen/pc-buddy/wiki)
 
 ---
 
@@ -425,8 +207,6 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 
 **🚀 Built with passion for the Windows community**
 
-[![Star this repo](https://img.shields.io/github/stars/user/pc-buddy?style=social)](https://github.com/user/pc-buddy/stargazers)
-[![Follow on GitHub](https://img.shields.io/github/followers/user?style=social)](https://github.com/user)
-[![Tweet](https://img.shields.io/twitter/url?style=social&url=https%3A%2F%2Fgithub.com%2Fuser%2Fpc-buddy)](https://twitter.com/intent/tweet?text=Check%20out%20PC%20Buddy%20-%20A%20modern%20Windows%20optimization%20tool!&url=https://github.com/user/pc-buddy)
+[![GitHub](https://img.shields.io/badge/GitHub-SeanMcKeen-blue?style=social&logo=github)](https://github.com/SeanMcKeen)
 
 </div>

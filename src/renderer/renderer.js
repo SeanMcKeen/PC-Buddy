@@ -3,8 +3,8 @@ console.log('systemInfoAPI:', window.systemInfoAPI);
 
 // Tool Action Handlers
 const toolActions = {
-  diskCleanup: () => promptDriveSelection(),
-  systemRepair: () => window.electronAPI.runSystemRepair()
+  systemRepair: () => window.electronAPI.runSystemRepair(),
+  createBackup: () => window.backupAPI.createBackup()
 };
 
 // Helper function to handle tool button loading states
@@ -18,8 +18,32 @@ function handleToolButtonAction(button, action) {
   resultEl.textContent = '';
   loadingEl.style.display = 'block';
 
+  // Trigger smooth masonry layout recalculation when loading state changes
+  setTimeout(() => {
+    masonryInstances.forEach(masonry => {
+      if (masonry.container.classList.contains('active')) {
+        masonry.container.classList.add('content-changing');
+        masonry.calculateLayout(true);
+        setTimeout(() => {
+          masonry.container.classList.remove('content-changing');
+        }, 600); // Match transition duration
+      }
+    });
+  }, 100);
+
   let dotCount = 0;
-  const baseText = button.innerText.includes('Repair') ? 'Repairing System' : 'Cleaning Disk';
+  const isSystemRepair = button.innerText.includes('Scan') || button.dataset.action === 'systemRepair';
+  const isBackup = button.innerText.includes('Backup') || button.dataset.action === 'createBackup';
+  
+  let baseText;
+  if (isSystemRepair) {
+    baseText = 'Running System Scan';
+  } else if (isBackup) {
+    baseText = 'Creating Backup';
+  } else {
+    baseText = 'Cleaning Disk';
+  }
+  
   statusText.textContent = baseText;
 
   const statusInterval = setInterval(() => {
@@ -37,11 +61,67 @@ function handleToolButtonAction(button, action) {
     clearInterval(statusInterval);
     loadingEl.style.display = 'none';
     statusText.textContent = '';
+    
+    // Trigger smooth masonry layout recalculation when loading state ends
+    setTimeout(() => {
+      masonryInstances.forEach(masonry => {
+        if (masonry.container.classList.contains('active')) {
+          masonry.container.classList.add('content-changing');
+          masonry.calculateLayout(true);
+          setTimeout(() => {
+            masonry.container.classList.remove('content-changing');
+          }, 600); // Match transition duration
+        }
+      });
+    }, 100);
+    
     setTimeout(() => {
       resultEl.textContent = '';
       resultEl.classList.remove('success', 'error');
     }, 5000);
   });
+}
+
+// Simple notification function using modal system
+function showNotification(message, type = 'info') {
+  return showModal({
+    type: type,
+    title: type === 'success' ? 'Success' : type === 'error' ? 'Error' : 'Information',
+    message: message,
+    confirmText: 'OK',
+    showCancel: false
+  });
+}
+
+// Function to refresh backup info display
+async function refreshBackupInfo() {
+  try {
+    const backupInfo = await window.backupAPI.getBackupInfo();
+    
+    const lastBackupEl = document.getElementById('lastBackupTime');
+    const backupLocationEl = document.getElementById('backupLocation');
+    
+    if (lastBackupEl) {
+      lastBackupEl.textContent = backupInfo.LastBackupDate;
+      lastBackupEl.style.color = backupInfo.LastBackupDate === 'Never' ? 'var(--text-muted)' : 'var(--text-primary)';
+    }
+    
+    if (backupLocationEl) {
+      const location = backupInfo.BackupLocation;
+      const maxLength = 50;
+      const displayLocation = location.length > maxLength ? 
+        '...' + location.substring(location.length - maxLength + 3) : 
+        location;
+      
+      backupLocationEl.textContent = displayLocation;
+      backupLocationEl.title = location;
+      backupLocationEl.style.color = 'var(--text-primary)';
+    }
+    
+    console.log('[Backup Info] Refreshed backup info:', backupInfo);
+  } catch (error) {
+    console.error('[Backup Info] Failed to refresh backup info:', error);
+  }
 }
 
 // Special exe name handling for known applications
@@ -90,6 +170,52 @@ window.addEventListener('DOMContentLoaded', async () => {
   console.log('[renderer.js] DOM fully loaded');
 
   // -------------------------
+  // Settings System
+  // -------------------------
+  
+  // Load settings from localStorage
+  const settings = {
+    theme: localStorage.getItem('pc-buddy-theme') || 'light',
+    defaultPage: localStorage.getItem('pc-buddy-default-page') || 'systemHealth',
+    autoRefresh: localStorage.getItem('pc-buddy-auto-refresh') !== 'false'
+  };
+  
+  console.log('[Settings] Loaded user settings:', settings);
+  
+  // Apply theme on startup
+  function applyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    const darkModeToggle = document.getElementById('darkModeToggle');
+    if (darkModeToggle) {
+      darkModeToggle.checked = theme === 'dark';
+    }
+  }
+  
+  // Apply settings on startup
+  function applySettings() {
+    applyTheme(settings.theme);
+    
+    const defaultPageSelect = document.getElementById('defaultPageSelect');
+    if (defaultPageSelect) {
+      defaultPageSelect.value = settings.defaultPage;
+    }
+    
+    const autoRefreshToggle = document.getElementById('autoRefreshToggle');
+    if (autoRefreshToggle) {
+      autoRefreshToggle.checked = settings.autoRefresh;
+    }
+    
+    // Update about version
+    const aboutVersion = document.getElementById('aboutVersion');
+    if (aboutVersion && window.systemInfoAPI?.getAppVersion) {
+      aboutVersion.textContent = `v${window.systemInfoAPI.getAppVersion()}`;
+    }
+  }
+  
+  // Initialize settings when DOM is ready
+  applySettings();
+
+  // -------------------------
   // Loading Screen Management
   // -------------------------
   const loadingScreen = document.getElementById('loadingScreen');
@@ -98,7 +224,9 @@ window.addEventListener('DOMContentLoaded', async () => {
   
   let currentDot = 0;
   const updateLoadingProgress = (text) => {
-    loadingText.textContent = text;
+    if (text) {
+      loadingText.textContent = text;
+    }
     
     // Reset all dots
     progressDots.forEach(dot => dot.classList.remove('active'));
@@ -110,6 +238,9 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
   };
 
+  // Initial progress message
+  updateLoadingProgress();
+
   // -------------------------
   // Tool Button Click Handling (consolidated)
   // -------------------------
@@ -118,14 +249,14 @@ window.addEventListener('DOMContentLoaded', async () => {
       const action = toolActions[button.dataset.action];
       if (action) {
         await handleToolButtonAction(button, action);
-      }
-    });
+    }
   });
+});
 
   // -------------------------
   // Sidebar & Section Switching
   // -------------------------
-  const sidebarItems = document.querySelectorAll('#sidebar li');
+  const sidebarItems = document.querySelectorAll('#sidebar li[data-section]');
   const sections = document.querySelectorAll('.section');
 
   function switchSection(sectionId) {
@@ -208,13 +339,13 @@ window.addEventListener('DOMContentLoaded', async () => {
   }
 
   sidebarItems.forEach(item => {
-    item.addEventListener('click', () => {
+  item.addEventListener('click', () => {
       const sectionId = item.dataset.section;
       if (sectionId) switchSection(sectionId);
     });
   });
 
-  const defaultSection = sidebarItems[0]?.dataset.section;
+  const defaultSection = settings.defaultPage || sidebarItems[0]?.dataset.section;
   if (defaultSection) switchSection(defaultSection);
 
   document.getElementById('toggleSidebar')?.addEventListener('click', () => {
@@ -290,117 +421,209 @@ window.addEventListener('DOMContentLoaded', async () => {
   // -------------------------
   // System Info Section
   // -------------------------
-  updateLoadingProgress('Loading system information...');
   
   const info = window.systemInfoAPI.getSystemInfo?.();
-  const list = document.getElementById('systemInfoList');
-  if (info && list) {
-    for (const [key, value] of Object.entries(info)) {
-      const item = document.createElement('li');
-      const label = key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
-      item.textContent = `${label}: ${value}`;
-      list.appendChild(item);
-    }
+  const grid = document.getElementById('systemInfoGrid');
+  if (info && grid) {
+    // Define system info items with icons and types
+    const systemInfoItems = [
+      {
+        key: 'operatingSystem',
+        label: 'Operating System',
+        icon: '🖥️',
+        type: 'os'
+      },
+      {
+        key: 'processor',
+        label: 'Processor',
+        icon: '⚡',
+        type: 'cpu'
+      },
+      {
+        key: 'architecture',
+        label: 'Architecture',
+        icon: '🏗️',
+        type: 'arch'
+      },
+      {
+        key: 'memory',
+        label: 'Memory Usage',
+        icon: '💾',
+        type: 'memory-combined'
+      },
+      {
+        key: 'computerName',
+        label: 'Computer Name',
+        icon: '🏷️',
+        type: 'name'
+      },
+      {
+        key: 'systemUptime',
+        label: 'System Uptime',
+        icon: '⏰',
+        type: 'uptime'
+      }
+    ];
+
+    systemInfoItems.forEach(item => {
+      if (item.key === 'memory' || info[item.key]) {
+        const itemEl = document.createElement('div');
+        itemEl.className = 'system-info-item';
+        itemEl.setAttribute('data-type', item.type);
+        
+        let valueContent = info[item.key] || '';
+        
+        // Special handling for combined memory display
+        if (item.type === 'memory-combined' && info.totalMemory && info.usedMemory && info.availableMemory) {
+          const totalGB = parseFloat(info.totalMemory.replace(' GB', ''));
+          const usedGB = parseFloat(info.usedMemory.replace(' GB', ''));
+          const usagePercent = ((usedGB / totalGB) * 100).toFixed(1);
+          
+          valueContent = `
+            <div class="memory-overview">
+              <div class="memory-stats">
+                <div class="memory-stat">
+                  <span class="memory-stat-value">${info.usedMemory}</span>
+                  <span class="memory-stat-label">Used</span>
+                </div>
+                <div class="memory-stat">
+                  <span class="memory-stat-value">${info.availableMemory}</span>
+                  <span class="memory-stat-label">Available</span>
+                </div>
+                <div class="memory-stat">
+                  <span class="memory-stat-value">${info.totalMemory}</span>
+                  <span class="memory-stat-label">Total</span>
+                </div>
+              </div>
+              <div class="memory-bar">
+                <div class="memory-fill" style="width: ${usagePercent}%"></div>
+              </div>
+              <div class="memory-percentage">${usagePercent}% used</div>
+            </div>
+          `;
+        }
+        
+        itemEl.innerHTML = `
+          <div class="system-info-header">
+            <span class="system-info-icon">${item.icon}</span>
+            <span class="system-info-label">${item.label}</span>
+          </div>
+          <div class="system-info-value">${valueContent}</div>
+        `;
+        
+        grid.appendChild(itemEl);
+      }
+    });
   }
+  
+  markComponentLoaded('systemInfo');
 
   // -------------------------
   // Startup Section
   // -------------------------
-  updateLoadingProgress('Loading startup programs...');
   
   const listEl = document.getElementById('startupList');
+  
+  try {
   const entries = await window.startupAPI.getStartupPrograms();
 
   if (!entries.length) {
     listEl.textContent = 'No startup entries found.';
-  } else {
-    entries.forEach(program => {
-      const name = program.name || program.Name || 'Unknown';
-      const command = program.command || program.Command || 'Unknown';
-      const safety = (program.safety || program.Safety || 'unknown').toLowerCase();
-      const isEnabled = (program.status || program.Status || '').toLowerCase() === 'enabled';
+    } else {
+  entries.forEach(program => {
+    const name = program.name || program.Name || 'Unknown';
+    const command = program.command || program.Command || 'Unknown';
+    const safety = (program.safety || program.Safety || 'unknown').toLowerCase();
+        const isEnabled = (program.status || program.Status || '').toLowerCase() === 'enabled';
 
-      const container = document.createElement('div');
-      container.classList.add('startup-item');
+    const container = document.createElement('div');
+    container.classList.add('startup-item');
 
-      const exeName = extractExeName(command, getExeNameFallback(name, command));
+        const exeName = extractExeName(command, getExeNameFallback(name, command));
 
-      const label = document.createElement('span');
-      label.className = 'startup-label';
-      label.textContent = exeName;
-      label.title = extractCommandPath(command);
+    const label = document.createElement('span');
+    label.className = 'startup-label';
+    label.textContent = exeName;
+        label.title = extractCommandPath(command);
 
-      const badge = document.createElement('span');
-      badge.className = `safety-badge ${safety}`;
-      
-      const safetyConfig = {
-        safe: { text: 'Safe', title: 'Safe to disable' },
-        caution: { text: 'Caution', title: 'May impact some functionality' },
-        danger: { text: 'Danger', title: 'Critical system component' },
-        unknown: { text: 'Unknown', title: 'Unknown impact' }
-      };
-      
-      const config = safetyConfig[safety] || safetyConfig.unknown;
-      badge.textContent = config.text;
-      badge.title = config.title;
+    const badge = document.createElement('span');
+    badge.className = `safety-badge ${safety}`;
+        
+        const safetyConfig = {
+          safe: { text: 'Safe', title: 'Safe to disable' },
+          caution: { text: 'Caution', title: 'May impact some functionality' },
+          danger: { text: 'Danger', title: 'Critical system component' },
+          unknown: { text: 'Unknown', title: 'Unknown impact' }
+        };
+        
+        const config = safetyConfig[safety] || safetyConfig.unknown;
+        badge.textContent = config.text;
+        badge.title = config.title;
 
-      const toggleContainer = document.createElement('label');
-      toggleContainer.className = 'toggle-switch';
+        const toggleContainer = document.createElement('label');
+        toggleContainer.className = 'toggle-switch';
 
-      const toggleInput = document.createElement('input');
-      toggleInput.type = 'checkbox';
-      toggleInput.checked = isEnabled;
+        const toggleInput = document.createElement('input');
+        toggleInput.type = 'checkbox';
+        toggleInput.checked = isEnabled;
 
-      const toggleSlider = document.createElement('span');
-      toggleSlider.className = 'toggle-slider';
+        const toggleSlider = document.createElement('span');
+        toggleSlider.className = 'toggle-slider';
 
-      toggleContainer.append(toggleInput, toggleSlider);
+        toggleContainer.append(toggleInput, toggleSlider);
 
-      toggleInput.onchange = async (e) => {
-        if (safety === 'danger') {
-          e.preventDefault();
-          toggleInput.checked = !toggleInput.checked;
+        toggleInput.onchange = async (e) => {
+          if (safety === 'danger') {
+            e.preventDefault();
+            toggleInput.checked = !toggleInput.checked;
 
-          const confirmed = await showModal({
-            type: 'warning',
-            title: 'Warning',
-            message: "Disabling this could harm system stability.\nContinue?",
-            confirmText: 'Yes, I understand'
-          });
+            const confirmed = await showModal({
+              type: 'warning',
+              title: 'Warning',
+              message: "Disabling this could harm system stability.\nContinue?",
+              confirmText: 'Yes, I understand'
+            });
 
-          if (!confirmed) return;
-          toggleInput.checked = !toggleInput.checked;
-        }
+            if (!confirmed) return;
+            toggleInput.checked = !toggleInput.checked;
+          }
 
-        toggleInput.disabled = true;
-        toggleSlider.classList.add('disabled');
+          toggleInput.disabled = true;
+          toggleSlider.classList.add('disabled');
 
-        try {
-          const result = await window.startupAPI.toggleStartup(name, toggleInput.checked);
-          console.log(result);
-        } catch (err) {
-          console.error('Toggle failed:', err);
-          toggleInput.checked = !toggleInput.checked;
-          await showModal({
-            type: 'error',
-            title: 'Operation Failed',
-            message: 'Try running the app as admin.',
-            confirmText: 'OK',
-            showCancel: false
-          });
-        } finally {
-          toggleInput.disabled = false;
-          toggleSlider.classList.remove('disabled');
-        }
-      };
+          try {
+            const result = await window.startupAPI.toggleStartup(name, toggleInput.checked);
+        console.log(result);
+    } catch (err) {
+        console.error('Toggle failed:', err);
+            toggleInput.checked = !toggleInput.checked;
+            await showModal({
+              type: 'error',
+              title: 'Operation Failed',
+              message: 'Try running the app as admin.',
+              confirmText: 'OK',
+              showCancel: false
+            });
+    } finally {
+            toggleInput.disabled = false;
+            toggleSlider.classList.remove('disabled');
+    }
+    };
 
-      const controls = document.createElement('div');
-      controls.className = 'startup-controls-horizontal';
-      controls.append(badge, toggleContainer);
+    const controls = document.createElement('div');
+    controls.className = 'startup-controls-horizontal';
+        controls.append(badge, toggleContainer);
 
-      container.append(label, controls);
-      listEl.appendChild(container);
+    container.append(label, controls);
+    listEl.appendChild(container);
     });
+    }
+    
+    markComponentLoaded('startupPrograms');
+  } catch (error) {
+    console.error('Failed to load startup programs:', error);
+    listEl.innerHTML = '<p class="error-message">Failed to load startup programs</p>';
+    markComponentLoaded('startupPrograms');
   }
 
   const taskBtn = document.getElementById('openTaskManagerBtn');
@@ -408,17 +631,148 @@ window.addEventListener('DOMContentLoaded', async () => {
     window.startupAPI.openTaskManager();
   });
 
-  // Initialize masonry layout after all content is loaded
-  updateLoadingProgress('Finalizing interface...');
+  // -------------------------
+  // Backup Management Section
+  // -------------------------
   
-  setTimeout(() => {
-    initMasonryLayout();
+  try {
+    // Use the reusable refresh function with a minimum delay
+    const [backupResult] = await Promise.all([
+      refreshBackupInfo(),
+      new Promise(resolve => setTimeout(resolve, 800)) // Minimum 800ms delay
+    ]);
+    markComponentLoaded('backupInfo');
+  } catch (error) {
+    console.error('Failed to load backup information:', error);
+    const lastBackupEl = document.getElementById('lastBackupTime');
+    const backupLocationEl = document.getElementById('backupLocation');
     
-    // Hide loading screen after everything is ready - extended duration for better UX
+    if (lastBackupEl) {
+      lastBackupEl.textContent = 'Error loading';
+      lastBackupEl.style.color = 'var(--danger-color)';
+    }
+    if (backupLocationEl) {
+      backupLocationEl.textContent = 'Error loading';
+      backupLocationEl.style.color = 'var(--danger-color)';
+    }
+    
+    // Still wait minimum delay even on error
     setTimeout(() => {
-      loadingScreen.classList.add('hidden');
-    }, 1500); // Extended from 500ms to 1500ms
-  }, 500); // Extended from 200ms to 500ms
+      markComponentLoaded('backupInfo');
+    }, 800);
+  }
+
+  // -------------------------
+  // Disk Usage Section
+  // -------------------------
+  
+  try {
+    const diskList = document.getElementById('diskList');
+    const disks = await window.cleanupAPI.getDiskUsage();
+    
+    if (!disks || !disks.length) {
+      diskList.innerHTML = '<p class="no-disks">No drives detected</p>';
+    } else {
+      // Sort drives: system drive first, then by letter
+      const sortedDisks = disks.sort((a, b) => {
+        if (a.IsSystem && !b.IsSystem) return -1;
+        if (!a.IsSystem && b.IsSystem) return 1;
+        return a.Name.localeCompare(b.Name);
+      });
+
+      diskList.innerHTML = '';
+      
+      sortedDisks.forEach(disk => {
+        const diskCard = document.createElement('div');
+        diskCard.className = 'disk-card';
+        if (disk.IsSystem) diskCard.classList.add('system-drive');
+
+        // Determine color based on usage percentage
+        let usageColor = '#4caf50'; // Green
+        if (disk.PercentUsed > 80) usageColor = '#f44336'; // Red
+        else if (disk.PercentUsed > 60) usageColor = '#ff9800'; // Orange
+
+        diskCard.innerHTML = `
+          <div class="disk-header">
+            <div class="disk-info">
+              <span class="disk-name">${disk.Name}:</span>
+              ${disk.IsSystem ? '<span class="system-badge">System</span>' : ''}
+            </div>
+            <div class="disk-percentage">${disk.PercentUsed}%</div>
+          </div>
+          <div class="disk-progress-bar">
+            <div class="disk-progress-fill" style="width: ${disk.PercentUsed}%; background-color: ${usageColor};"></div>
+          </div>
+          <div class="disk-details">
+            <span class="disk-used">${disk.UsedGB} GB used</span>
+            <span class="disk-free">${disk.FreeGB} GB free</span>
+            <span class="disk-total">of ${disk.TotalGB} GB</span>
+          </div>
+          <button class="disk-clean-btn" data-drive="${disk.Name}">
+            <span class="btn-icon">🧹</span>
+            Clean Drive
+          </button>
+        `;
+
+        diskList.appendChild(diskCard);
+      });
+
+      // Add event listeners to clean buttons
+      diskList.querySelectorAll('.disk-clean-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          const driveLetter = e.target.closest('.disk-clean-btn').dataset.drive;
+          const diskInfo = disks.find(d => d.Name === driveLetter);
+          
+          const confirmed = await showModal({
+            type: 'warning',
+            title: `Clean ${driveLetter}: Drive`,
+            message: `This will remove temporary files and cache from drive ${driveLetter}:\n\n` +
+                    `• Temporary files\n` +
+                    `• Browser cache\n` +
+                    `• System cache\n` +
+                    `• Prefetch files\n\n` +
+                    `${diskInfo.IsSystem ? 'This is your system drive. ' : ''}Continue?`,
+            confirmText: 'Clean Drive'
+          });
+
+          if (confirmed) {
+            await performDriveCleanup(driveLetter);
+          }
+        });
+      });
+    }
+    
+    // Wait for DOM rendering to complete before marking as loaded
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        markComponentLoaded('diskUsage');
+      });
+    });
+  } catch (error) {
+    console.error('Failed to load disk usage:', error);
+    const diskList = document.getElementById('diskList');
+    diskList.innerHTML = '<p class="error-message">Failed to load disk information</p>';
+    
+    // Mark as loaded even on error, but wait for DOM update
+    requestAnimationFrame(() => {
+      markComponentLoaded('diskUsage');
+    });
+  }
+
+  // -------------------------
+  // Initialize Masonry Layout
+  // -------------------------
+  
+  // Initialize masonry layout
+  initMasonryLayout();
+  
+  // Mark masonry as initialized
+  setTimeout(() => {
+    markComponentLoaded('masonryInitialized');
+  }, 1000); // Give masonry time to calculate initial layout
+  
+  // Initialize custom shortcuts
+  loadCustomShortcuts();
 
   // Handle window resize for masonry layout
   window.addEventListener('resize', () => {
@@ -429,96 +783,386 @@ window.addEventListener('DOMContentLoaded', async () => {
       });
     }, 150);
   });
-});
 
-// -------------------------
-// Drive Selection and Cleanup
-// -------------------------
-
-document.getElementById('chooseDriveBtn')?.addEventListener('click', async () => {
-  const result = await promptDriveSelection();
-  if (result?.startCleanup === true) {
-    // Only show spinner after confirmation
-    const card = document.getElementById('diskCleanupCard');
-    const loadingEl = card.querySelector('.loadingMessage');
-    const resultEl = card.querySelector('.toolResult');
-    const statusText = card.querySelector('.statusText');
-
-    resultEl.classList.remove('success', 'error');
-    resultEl.textContent = '';
-    loadingEl.style.display = 'block';
-
-    let dotCount = 0;
-    statusText.textContent = 'Cleaning Disk';
-
-    const statusInterval = setInterval(() => {
-      dotCount = (dotCount + 1) % 4;
-      statusText.textContent = 'Cleaning Disk' + '.'.repeat(dotCount);
-    }, 500);
-
-    try {
-      const cleanupResult = await window.cleanupAPI.cleanDrive(result.drive);
-      resultEl.classList.add('success');
-      resultEl.textContent = cleanupResult || `Cleanup started on drive ${result.drive}`;
-    } catch (err) {
-      resultEl.classList.add('error');
-      resultEl.textContent = 'Error: ' + err.message;
-    } finally {
-      clearInterval(statusInterval);
-      loadingEl.style.display = 'none';
-      statusText.textContent = '';
-      setTimeout(() => {
-        resultEl.textContent = '';
-        resultEl.classList.remove('success', 'error');
-      }, 5000);
+  // -------------------------
+  // Settings Event Handlers
+  // -------------------------
+  
+  // Theme toggle
+  document.getElementById('darkModeToggle')?.addEventListener('change', (e) => {
+    const theme = e.target.checked ? 'dark' : 'light';
+    settings.theme = theme;
+    localStorage.setItem('pc-buddy-theme', theme);
+    console.log('[Settings] Theme changed to:', theme);
+    applyTheme(theme);
+  });
+  
+  // Default page selection
+  document.getElementById('defaultPageSelect')?.addEventListener('change', (e) => {
+    settings.defaultPage = e.target.value;
+    localStorage.setItem('pc-buddy-default-page', e.target.value);
+    console.log('[Settings] Default page changed to:', e.target.value);
+  });
+  
+  // Auto-refresh toggle
+  document.getElementById('autoRefreshToggle')?.addEventListener('change', (e) => {
+    settings.autoRefresh = e.target.checked;
+    localStorage.setItem('pc-buddy-auto-refresh', e.target.checked);
+    console.log('[Settings] Auto-refresh changed to:', e.target.checked);
+    
+    // Start or stop auto-refresh based on setting
+    if (settings.autoRefresh) {
+      startAutoRefresh();
+    } else {
+      stopAutoRefresh();
+    }
+  });
+  
+  // Auto-refresh system info functionality
+  let autoRefreshInterval = null;
+  
+  function startAutoRefresh() {
+    if (autoRefreshInterval) return; // Already running
+    
+    autoRefreshInterval = setInterval(() => {
+      // Only refresh if on system health page and auto-refresh is enabled
+      if (settings.autoRefresh && document.getElementById('systemHealth')?.classList.contains('active')) {
+        refreshSystemInfo();
+      }
+    }, 60000); // Refresh every minute
+  }
+  
+  function stopAutoRefresh() {
+    if (autoRefreshInterval) {
+      clearInterval(autoRefreshInterval);
+      autoRefreshInterval = null;
     }
   }
+  
+  function refreshSystemInfo() {
+    const grid = document.getElementById('systemInfoGrid');
+    const info = window.systemInfoAPI.getSystemInfo?.();
+    
+    if (!info || !grid) return;
+    
+    // Update existing values without rebuilding the entire grid
+    grid.querySelectorAll('.system-info-item').forEach(item => {
+      const type = item.getAttribute('data-type');
+      const valueEl = item.querySelector('.system-info-value');
+      
+      // Update specific values
+      if (type === 'memory-combined' && info.totalMemory && info.usedMemory && info.availableMemory) {
+        const totalGB = parseFloat(info.totalMemory.replace(' GB', ''));
+        const usedGB = parseFloat(info.usedMemory.replace(' GB', ''));
+        const usagePercent = ((usedGB / totalGB) * 100).toFixed(1);
+        
+        valueEl.innerHTML = `
+          <div class="memory-overview">
+            <div class="memory-stats">
+              <div class="memory-stat">
+                <span class="memory-stat-value">${info.usedMemory}</span>
+                <span class="memory-stat-label">Used</span>
+              </div>
+              <div class="memory-stat">
+                <span class="memory-stat-value">${info.availableMemory}</span>
+                <span class="memory-stat-label">Available</span>
+              </div>
+              <div class="memory-stat">
+                <span class="memory-stat-value">${info.totalMemory}</span>
+                <span class="memory-stat-label">Total</span>
+              </div>
+            </div>
+            <div class="memory-bar">
+              <div class="memory-fill" style="width: ${usagePercent}%"></div>
+            </div>
+            <div class="memory-percentage">${usagePercent}% used</div>
+          </div>
+        `;
+      } else if (type === 'uptime') {
+        valueEl.textContent = info.systemUptime;
+      }
+    });
+  }
+  
+  // Start auto-refresh if enabled
+  if (settings.autoRefresh) {
+    startAutoRefresh();
+  }
+
+  // -------------------------
+  // Backup Path Settings
+  // -------------------------
+  
+  // Initialize backup path functionality
+  const backupPathInput = document.getElementById('backupPathInput');
+  const selectBackupPathBtn = document.getElementById('selectBackupPath');
+
+  // Load current backup path function
+  async function loadBackupPath() {
+    try {
+      console.log('[Backup Path] Loading current backup path...');
+      const currentPath = await window.backupAPI.getBackupPath();
+      console.log('[Backup Path] Current path:', currentPath);
+      if (backupPathInput) {
+        backupPathInput.value = currentPath;
+        backupPathInput.title = currentPath; // Show full path on hover
+      }
+    } catch (error) {
+      console.error('[Backup Path] Failed to load backup path:', error);
+      if (backupPathInput) {
+        backupPathInput.value = 'Error loading path';
+        backupPathInput.title = 'Failed to load backup path';
+      }
+    }
+  }
+
+  // Initialize backup path if elements exist
+  if (backupPathInput && selectBackupPathBtn) {
+    console.log('[Backup Path] Elements found, setting up backup path functionality...');
+    
+    // Load initial backup path
+    await loadBackupPath();
+    
+    // Add event listener for backup path button
+    selectBackupPathBtn.addEventListener('click', async () => {
+      try {
+        console.log('[Backup Path] Select button clicked');
+        selectBackupPathBtn.disabled = true;
+        selectBackupPathBtn.textContent = 'Selecting...';
+        
+        const selectedPath = await window.backupAPI.selectBackupPath();
+        console.log('[Backup Path] Selected path:', selectedPath);
+        backupPathInput.value = selectedPath;
+        backupPathInput.title = selectedPath;
+        
+        // Refresh backup info display immediately
+        await refreshBackupInfo();
+        
+        // Show success message
+        showNotification('Backup location updated successfully', 'success');
+      } catch (error) {
+        console.error('[Backup Path] Failed to select backup path:', error);
+        if (error.message !== 'No folder selected') {
+          showNotification('Failed to update backup location: ' + error.message, 'error');
+        }
+      } finally {
+        selectBackupPathBtn.disabled = false;
+        selectBackupPathBtn.textContent = 'Browse';
+      }
+    });
+  } else {
+    console.log('[Backup Path] Some elements missing, backup path functionality not available');
+  }
+  
+  // Mark settings as initialized once all setup is complete
+  markComponentLoaded('settingsInitialized');
 });
+
+// -------------------------
+// Global Settings Functions
+// -------------------------
+
+function resetAllSettings() {
+  const confirmed = confirm('Are you sure you want to reset all settings to their defaults? This action cannot be undone.');
+  
+  if (confirmed) {
+    console.log('[Settings] Resetting all settings to defaults');
+    
+    // Clear all settings from localStorage
+    localStorage.removeItem('pc-buddy-theme');
+    localStorage.removeItem('pc-buddy-default-page');
+    localStorage.removeItem('pc-buddy-auto-refresh');
+    localStorage.removeItem('customShortcuts');
+    
+    // Reset backup location in registry
+    const regCommand = `reg delete "HKCU\\Software\\PC-Buddy" /v BackupLocation /f 2>nul`;
+    
+    window.systemAPI.runPowerShellCommand(`& cmd /c "${regCommand}"`).then(() => {
+      console.log('[Settings] Backup location reset to default');
+      
+      // Reload backup path display
+      const backupPathInput = document.getElementById('backupPathInput');
+      if (backupPathInput && window.backupAPI) {
+        window.backupAPI.getBackupPath().then(path => {
+          backupPathInput.value = path;
+          backupPathInput.title = path;
+        }).catch(error => {
+          console.error('[Settings] Failed to reload backup path:', error);
+        });
+      }
+      
+      // Refresh backup info display
+      refreshBackupInfo();
+    }).catch(error => {
+      console.error('[Settings] Failed to reset backup location:', error);
+    });
+    
+    // Reset to defaults
+    document.documentElement.setAttribute('data-theme', 'light');
+    
+    const darkModeToggle = document.getElementById('darkModeToggle');
+    if (darkModeToggle) darkModeToggle.checked = false;
+    
+    const defaultPageSelect = document.getElementById('defaultPageSelect');
+    if (defaultPageSelect) defaultPageSelect.value = 'systemHealth';
+    
+    const autoRefreshToggle = document.getElementById('autoRefreshToggle');
+    if (autoRefreshToggle) autoRefreshToggle.checked = true;
+    
+    // Reload custom shortcuts
+    loadCustomShortcuts();
+    
+    // Refresh masonry layout
+    setTimeout(() => {
+      masonryInstances.forEach(masonry => {
+        masonry.refresh();
+      });
+    }, 100);
+    
+    console.log('[Settings] All settings reset successfully');
+    alert('All settings have been reset to their defaults.');
+  }
+}
+
+// -------------------------
+// Drive Cleanup Function
+// -------------------------
+
+async function performDriveCleanup(driveLetter) {
+  const card = document.getElementById('diskCleanupCard');
+  const loadingEl = card.querySelector('.loadingMessage');
+  const resultEl = card.querySelector('.toolResult');
+  const statusText = card.querySelector('.statusText');
+
+  // Find and disable the specific drive button
+  const driveBtn = card.querySelector(`[data-drive="${driveLetter}"]`);
+  if (driveBtn) {
+    driveBtn.disabled = true;
+    driveBtn.innerHTML = '<span class="btn-icon">⏳</span>Cleaning...';
+  }
+
+  resultEl.classList.remove('success', 'error');
+  resultEl.textContent = '';
+  loadingEl.style.display = 'block';
+
+  let dotCount = 0;
+  statusText.textContent = `Cleaning ${driveLetter}: Drive`;
+
+  const statusInterval = setInterval(() => {
+    dotCount = (dotCount + 1) % 4;
+    statusText.textContent = `Cleaning ${driveLetter}: Drive` + '.'.repeat(dotCount);
+  }, 500);
+
+  try {
+    const cleanupResult = await window.cleanupAPI.cleanDrive(driveLetter);
+    resultEl.classList.add('success');
+    resultEl.textContent = cleanupResult || `Cleanup completed on drive ${driveLetter}:`;
+    
+    // Refresh disk usage after cleanup
+    setTimeout(async () => {
+      try {
+        const diskList = document.getElementById('diskList');
+        const disks = await window.cleanupAPI.getDiskUsage();
+        const updatedDisk = disks.find(d => d.Name === driveLetter);
+        
+        if (updatedDisk) {
+          const diskCard = diskList.querySelector(`[data-drive="${driveLetter}"]`).closest('.disk-card');
+          const progressFill = diskCard.querySelector('.disk-progress-fill');
+          const percentage = diskCard.querySelector('.disk-percentage');
+          const usedText = diskCard.querySelector('.disk-used');
+          const freeText = diskCard.querySelector('.disk-free');
+          
+          // Update progress bar color
+          let usageColor = '#4caf50';
+          if (updatedDisk.PercentUsed > 80) usageColor = '#f44336';
+          else if (updatedDisk.PercentUsed > 60) usageColor = '#ff9800';
+          
+          progressFill.style.width = `${updatedDisk.PercentUsed}%`;
+          progressFill.style.backgroundColor = usageColor;
+          percentage.textContent = `${updatedDisk.PercentUsed}%`;
+          usedText.textContent = `${updatedDisk.UsedGB} GB used`;
+          freeText.textContent = `${updatedDisk.FreeGB} GB free`;
+        }
+      } catch (refreshError) {
+        console.warn('Failed to refresh disk usage after cleanup:', refreshError);
+      }
+    }, 2000);
+    
+  } catch (err) {
+    resultEl.classList.add('error');
+    resultEl.textContent = 'Error: ' + err.message;
+  } finally {
+    clearInterval(statusInterval);
+    loadingEl.style.display = 'none';
+    statusText.textContent = '';
+    
+    // Re-enable the drive button
+    if (driveBtn) {
+      driveBtn.disabled = false;
+      driveBtn.innerHTML = '<span class="btn-icon">🧹</span>Clean Drive';
+    }
+    
+    setTimeout(() => {
+      resultEl.textContent = '';
+      resultEl.classList.remove('success', 'error');
+    }, 5000);
+  }
+}
 
 // -------------------------
 // Modal System
 // -------------------------
 
-function showModal({ type = 'warning', title, message, confirmText = 'OK', showCancel = true }) {
+async function showModal({ type = 'info', title, message, confirmText = 'OK', cancelText = 'Cancel', showCancel = true }) {
   return new Promise((resolve) => {
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
-    
+
     const content = document.createElement('div');
     content.className = 'modal-content';
-    
+
     const header = document.createElement('div');
     header.className = `modal-header ${type}`;
-    
+
+    const iconMap = {
+      info: 'ℹ️',
+      warning: '⚠️',
+      error: '❌',
+      success: '✅'
+    };
+
     const icon = document.createElement('span');
-    icon.className = 'modal-warning-icon';
-    icon.textContent = type === 'error' ? '❌' : '⚠️';
-    
+    icon.className = `modal-${type}-icon`;
+    icon.textContent = iconMap[type] || iconMap.info;
+
     const titleEl = document.createElement('h3');
     titleEl.className = 'modal-title';
     titleEl.textContent = title;
-    
+
     header.appendChild(icon);
     header.appendChild(titleEl);
-    
+    content.appendChild(header);
+
     const body = document.createElement('div');
     body.className = 'modal-body';
+    body.style.whiteSpace = 'pre-line';
     body.textContent = message;
-    
+    content.appendChild(body);
+
     const actions = document.createElement('div');
     actions.className = 'modal-actions';
-    
+
     if (showCancel) {
       const cancelBtn = document.createElement('button');
       cancelBtn.className = 'modal-button cancel';
-      cancelBtn.textContent = 'Cancel';
+      cancelBtn.textContent = cancelText;
       cancelBtn.onclick = () => {
         document.body.removeChild(overlay);
         resolve(false);
       };
       actions.appendChild(cancelBtn);
     }
-    
+
     const confirmBtn = document.createElement('button');
     confirmBtn.className = `modal-button ${type}`;
     confirmBtn.textContent = confirmText;
@@ -526,136 +1170,22 @@ function showModal({ type = 'warning', title, message, confirmText = 'OK', showC
       document.body.removeChild(overlay);
       resolve(true);
     };
-    
     actions.appendChild(confirmBtn);
-    
-    content.appendChild(header);
-    content.appendChild(body);
+
     content.appendChild(actions);
-    
     overlay.appendChild(content);
     document.body.appendChild(overlay);
 
-    // Handle escape key
-    const handleEscape = (e) => {
-      if (e.key === 'Escape' && showCancel) {
+    // Close on overlay click
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) {
         document.body.removeChild(overlay);
-        window.removeEventListener('keydown', handleEscape);
         resolve(false);
       }
-    };
-    window.addEventListener('keydown', handleEscape);
-  });
-}
-
-async function promptDriveSelection() {
-  const disks = await window.cleanupAPI.getDiskUsage();
-  if (!disks || !disks.length) {
-    await showModal({
-      type: 'error',
-      title: 'No Drives Found',
-      message: 'We could not detect any drives to clean.'
     });
-    return;
-  }
 
-  const systemDrive = disks.find(d => d.IsSystem) || disks[0];
-  let selectedDrive = systemDrive;
-
-  return new Promise((resolve) => {
-    const overlay = document.createElement('div');
-    overlay.className = 'modal-overlay';
-
-    const content = document.createElement('div');
-    content.className = 'modal-content';
-
-    const header = document.createElement('div');
-    header.className = 'modal-header warning';
-
-    const icon = document.createElement('span');
-    icon.className = 'modal-warning-icon';
-    icon.textContent = '⚠️';
-
-    const titleEl = document.createElement('h3');
-    titleEl.className = 'modal-title';
-    titleEl.textContent = `Clean ${selectedDrive.Name}: Drive`;
-
-    header.appendChild(icon);
-    header.appendChild(titleEl);
-    content.appendChild(header);
-
-    const body = document.createElement('div');
-    body.className = 'modal-body';
-    body.innerHTML = `This will clean temporary files and system junk from ${selectedDrive.Name}:.`;
-
-    const actions = document.createElement('div');
-    actions.className = 'modal-actions';
-
-    const cancelBtn = document.createElement('button');
-    cancelBtn.className = 'modal-button cancel';
-    cancelBtn.textContent = 'Cancel';
-    cancelBtn.onclick = () => {
-      document.body.removeChild(overlay);
-      resolve({ startCleanup: false });
-    };
-
-    const confirmBtn = document.createElement('button');
-    confirmBtn.className = 'modal-button warning';
-    confirmBtn.textContent = 'Yes, Clean It';
-    confirmBtn.onclick = () => {
-      document.body.removeChild(overlay);
-      resolve({ startCleanup: true, drive: selectedDrive.Name });
-    };
-
-    const moreDrivesBtn = document.createElement('button');
-    moreDrivesBtn.className = 'modal-button secondary';
-    moreDrivesBtn.textContent = 'Show More Drives';
-    moreDrivesBtn.style.marginLeft = 'auto';
-
-    moreDrivesBtn.onclick = () => {
-      body.innerHTML = 'Select another drive to clean:';
-      actions.innerHTML = ''; // Clear previous actions
-
-      disks.forEach((d) => {
-        const driveBtn = document.createElement('button');
-        driveBtn.className = 'modal-button drive-select';
-        driveBtn.textContent = `${d.Name}: ${d.PercentUsed}% used (${d.UsedGB} GB of ${d.TotalGB} GB)`;
-
-        driveBtn.onclick = async () => {
-          const confirm = await showModal({
-            type: 'warning',
-            title: `Clean ${d.Name}: Drive`,
-            message: `Are you sure you want to clean temp files from ${d.Name}:?`,
-            confirmText: 'Yes, Clean It'
-          });
-
-          if (confirm) {
-            document.body.removeChild(overlay);
-            resolve({ startCleanup: true, drive: d.Name });
-          }
-        };
-
-        body.appendChild(document.createElement('br'));
-        body.appendChild(driveBtn);
-      });
-
-      const cancelDriveBtn = document.createElement('button');
-      cancelDriveBtn.className = 'modal-button cancel';
-      cancelDriveBtn.textContent = 'Cancel';
-      cancelDriveBtn.onclick = () => {
-        document.body.removeChild(overlay);
-        resolve({ startCleanup: false });
-      };
-
-      actions.appendChild(cancelDriveBtn);
-    };
-
-    actions.append(cancelBtn, confirmBtn, moreDrivesBtn);
-
-    content.appendChild(body);
-    content.appendChild(actions);
-    overlay.appendChild(content);
-    document.body.appendChild(overlay);
+    // Focus the confirm button
+    setTimeout(() => confirmBtn.focus(), 100);
   });
 }
 
@@ -682,9 +1212,9 @@ class MasonryLayout {
   
   getCardWidth() {
     const containerWidth = this.container.offsetWidth - 40; // Account for padding
-    const minCardWidth = window.innerWidth <= 768 ? 300 : 
-                        window.innerWidth <= 1200 ? 320 :
-                        window.innerWidth <= 1600 ? 350 : 380;
+    const minCardWidth = window.innerWidth <= 768 ? 350 : 
+                        window.innerWidth <= 1200 ? 430 :
+                        window.innerWidth <= 1600 ? 450 : 470;
     
     // Calculate how many columns we can fit
     const possibleColumns = Math.floor((containerWidth + this.gap) / (minCardWidth + this.gap));
@@ -878,6 +1408,52 @@ class MasonryLayout {
     
     // Observe container for size changes
     this.resizeObserver.observe(this.container);
+    
+    // Add MutationObserver to watch for content changes in cards
+    if (this.mutationObserver) {
+      this.mutationObserver.disconnect();
+    }
+    
+    this.mutationObserver = new MutationObserver((mutations) => {
+      let shouldRecalculate = false;
+      
+      mutations.forEach(mutation => {
+        // Check if any visible content changed that could affect card height
+        if (mutation.type === 'childList' || 
+            (mutation.type === 'attributes' && 
+             (mutation.attributeName === 'style' || mutation.attributeName === 'class'))) {
+          
+          // Check if the mutation affects display/visibility
+          const target = mutation.target;
+          if (target.closest && target.closest('.tool-card')) {
+            shouldRecalculate = true;
+          }
+        }
+      });
+      
+      if (shouldRecalculate) {
+        clearTimeout(this.mutationTimeout);
+        this.mutationTimeout = setTimeout(() => {
+          if (!this.isResizing) {
+            this.container.classList.add('content-changing');
+            this.calculateLayout(true);
+            setTimeout(() => {
+              this.container.classList.remove('content-changing');
+            }, 500); // Match transition duration
+          }
+        }, 150);
+      }
+    });
+    
+    // Observe all cards for content changes
+    this.cards.forEach(card => {
+      this.mutationObserver.observe(card, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['style', 'class']
+      });
+    });
   }
   
   refresh() {
@@ -906,6 +1482,10 @@ class MasonryLayout {
       this.resizeObserver.disconnect();
     }
     
+    if (this.mutationObserver) {
+      this.mutationObserver.disconnect();
+    }
+    
     // Cancel any pending animations
     if (this.resizeRAF) {
       cancelAnimationFrame(this.resizeRAF);
@@ -917,6 +1497,7 @@ class MasonryLayout {
     
     // Clean up timeouts
     clearTimeout(this.observerTimeout);
+    clearTimeout(this.mutationTimeout);
     
     // Reset container
     this.container.classList.remove('js-masonry', 'loading', 'resizing');
@@ -1268,3 +1849,116 @@ Example: testUpdateNotification.simulateDownload()
 
 // Auto-show help on load
 console.log('🧪 Update notification test functions loaded! Type "testUpdateNotification.help()" for commands.');
+
+// -------------------------
+// Loading State Management
+// -------------------------
+
+let componentsLoaded = {
+  systemInfo: false,
+  startupPrograms: false,
+  backupInfo: false,
+  diskUsage: false,
+  settingsInitialized: false,
+  masonryInitialized: false
+};
+
+let loadingTimeout = null;
+let minimumLoadingTime = 5000; // Minimum 5 seconds loading time
+let loadingStartTime = Date.now();
+
+function checkAllComponentsLoaded() {
+  const allLoaded = Object.values(componentsLoaded).every(loaded => loaded);
+  const loadingScreen = document.getElementById('loadingScreen');
+  const currentTime = Date.now();
+  const elapsedTime = currentTime - loadingStartTime;
+  
+  console.log('[Loading] Check components:', componentsLoaded);
+  console.log('[Loading] All loaded:', allLoaded, 'Elapsed time:', elapsedTime);
+  
+  if (allLoaded && loadingScreen) {
+    // Calculate remaining time to meet minimum loading duration
+    const remainingTime = Math.max(0, minimumLoadingTime - elapsedTime);
+    
+    console.log('[Loading] Remaining time:', remainingTime);
+    
+    // Update progress to show completion
+    updateLoadingProgress();
+    
+    // Show "Ready!" message
+    const progressTextEl = document.querySelector('.loading-text');
+    if (progressTextEl) {
+      progressTextEl.textContent = 'Ready!';
+    }
+    
+    // Activate all progress dots
+    const progressDots = document.querySelectorAll('.progress-dots .dot');
+    progressDots.forEach(dot => dot.classList.add('active'));
+    
+    // Wait for minimum loading time plus additional delay for smooth UX
+    setTimeout(() => {
+      console.log('[Loading] Hiding loading screen');
+      loadingScreen.classList.add('hidden');
+      setTimeout(() => {
+        loadingScreen.style.display = 'none';
+      }, 500); // Wait for fade animation
+    }, remainingTime + 2000); // Extra 2s after minimum time for "Ready!" message
+  }
+}
+
+function markComponentLoaded(component) {
+  console.log(`[Loading] Component loaded: ${component}`);
+  componentsLoaded[component] = true;
+  
+  // Add delay for each component to spread loading out
+  setTimeout(() => {
+    updateLoadingProgress();
+    checkAllComponentsLoaded();
+  }, 500); // 500ms delay between each component load
+}
+
+function updateLoadingProgress() {
+  const loadedCount = Object.values(componentsLoaded).filter(loaded => loaded).length;
+  const totalCount = Object.keys(componentsLoaded).length;
+  const percentage = Math.round((loadedCount / totalCount) * 100);
+  
+  const progressFill = document.querySelector('.progress-fill');
+  const progressText = document.querySelector('.progress-text');
+  const loadingText = document.querySelector('.loading-text');
+  
+  if (progressFill) progressFill.style.width = `${percentage}%`;
+  if (progressText) progressText.textContent = `${percentage}%`;
+  
+  // Update descriptive loading text based on what's loaded
+  if (loadingText) {
+    if (percentage === 0) {
+      loadingText.textContent = 'Initializing application...';
+    } else if (percentage < 20) {
+      loadingText.textContent = 'Loading system information...';
+    } else if (percentage < 40) {
+      loadingText.textContent = 'Loading startup programs...';
+    } else if (percentage < 60) {
+      loadingText.textContent = 'Loading backup information...';
+    } else if (percentage < 80) {
+      loadingText.textContent = 'Analyzing disk usage...';
+    } else if (percentage < 90) {
+      loadingText.textContent = 'Initializing settings...';
+    } else if (percentage < 100) {
+      loadingText.textContent = 'Finalizing interface...';
+    } else {
+      loadingText.textContent = 'Ready!';
+    }
+  }
+  
+  // Update progress dots based on percentage
+  const progressDots = document.querySelectorAll('.progress-dots .dot');
+  const activeDots = Math.ceil((percentage / 100) * progressDots.length);
+  
+  progressDots.forEach((dot, index) => {
+    if (index < activeDots) {
+      dot.classList.add('active');
+    }
+  });
+  
+  console.log(`[Loading] Progress: ${loadedCount}/${totalCount} (${percentage}%)`);
+}

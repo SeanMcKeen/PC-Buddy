@@ -31,8 +31,8 @@ function Get-SafetyRating {
 
     if ($critical | Where-Object { $name -like "*$_*" -or $command -like "*$_*" }) { return 'danger' }
     if ($system | Where-Object { $name -like "*$_*" -or $command -like "*$_*" }) { return 'caution' }
-    return 'safe'
-}
+        return 'safe'
+    }
 
 function Normalize-ExeName {
     param ([string]$command)

@@ -27,6 +27,10 @@
           <span class="dot"></span>
         </div>
       </div>
+      <div class="loading-footer">
+        <div class="loading-version">v0.2.0</div>
+        <div class="loading-author">Created by Sean McKeen</div>
+      </div>
     </div>
   </div>
 
@@ -65,11 +69,21 @@
         <h3 class="logo-text">PC Buddy</h3>
         <button id="toggleSidebar" title="Toggle Sidebar">☰</button>
       </div>
-      <ul>
+      <nav class="sidebar-nav">
+        <ul class="nav-items">
         <li class="active" data-section="systemHealth" title="System Health"><span class="icon">🖥️</span><span class="label">System Health</span></li>
-        <li data-section="shortcuts" title="Shortcuts"><span class="icon">⚡</span><span class="label">Shortcuts</span></li>
+          <li data-section="shortcuts" title="Shortcuts"><span class="icon">⚡</span><span class="label">Shortcuts</span></li>
         <li data-section="drivers" title="Drivers"><span class="icon">🔌</span><span class="label">Drivers</span></li>
       </ul>
+        <div class="sidebar-divider"></div>
+        <ul class="settings-items">
+          <li data-section="settings" title="Settings"><span class="icon">⚙️</span><span class="label">Settings</span></li>
+        </ul>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="version-info">v0.2.0</div>
+        <div class="author-credit">by Sean McKeen</div>
+      </div>
     </div>
 
     <div id="mainContent">
@@ -77,21 +91,68 @@
 
         <!-- System Information Card -->
         <div class="tool-card" id="systemInfoCard">
-          <h3>System Info</h3>
-          <ul id="systemInfoList" class="system-info-list"></ul>
+          <h3><span class="icon">💻</span> System Information</h3>
+          <p class="description">Overview of your computer's hardware and system details.</p>
+          <div id="systemInfoGrid" class="system-info-grid">
+            <!-- System info will be populated here -->
+          </div>
         </div>
 
         <!-- System Repair Card -->
         <div class="tool-card" id="systemRepairCard">
-          <h3>System Repair Utility</h3>
-          <p class="description">This will find and repair any corrupted files.</p>
+          <h3><span class="icon">🛠️</span> System Repair Utility</h3>
+          <p class="description">Scan and repair corrupted system files using Windows SFC and DISM tools.</p>
 
-          <button class="tool-btn" data-action="systemRepair">Start Scan</button>
+          <button class="tool-btn" data-action="systemRepair">Start System Scan</button>
 
           <div class="loadingMessage" style="display: none;">
-            <div class="spinner"></div>
-            <p class="statusText">Running...</p>
-            <p class="estimatedTime">Estimated time: ~1 minute</p>
+            <div class="modern-spinner">
+              <div class="spinner-ring"></div>
+              <div class="spinner-ring"></div>
+              <div class="spinner-ring"></div>
+            </div>
+            <p class="statusText">Running System Scan</p>
+            <p class="estimatedTime">This may take 5-15 minutes depending on your system</p>
+          </div>
+
+          <div class="toolResult"></div>
+        </div>
+
+        <!-- Backup Management Card -->
+        <div class="tool-card" id="backupManagementCard">
+          <h3><span class="icon">💾</span> Backup Management</h3>
+          <p class="description">Create, manage, and restore system backups to protect your important data.</p>
+          
+          <div class="backup-actions">
+            <button class="tool-btn" data-action="createBackup">
+              <span class="btn-icon">💾</span>
+              Create System Backup
+            </button>
+            <button class="tool-btn secondary" onclick="window.backupAPI.openBackupLocation()">
+              <span class="btn-icon">📁</span>
+              Open Backup Folder
+            </button>
+          </div>
+
+          <div class="backup-info">
+            <div class="backup-item">
+              <span class="backup-label">Last Backup:</span>
+              <span class="backup-value" id="lastBackupTime">Checking...</span>
+            </div>
+            <div class="backup-item">
+              <span class="backup-label">Backup Location:</span>
+              <span class="backup-value" id="backupLocation">Loading...</span>
+            </div>
+          </div>
+
+          <div class="loadingMessage" style="display: none;">
+            <div class="modern-spinner">
+              <div class="spinner-ring"></div>
+              <div class="spinner-ring"></div>
+              <div class="spinner-ring"></div>
+            </div>
+            <p class="statusText">Creating Backup</p>
+            <p class="estimatedTime">This may take 10-30 minutes depending on data size</p>
           </div>
 
           <div class="toolResult"></div>
@@ -120,11 +181,12 @@
         <!-- Disk Usage and Cleanup Card -->
         <div class="tool-card" id="diskCleanupCard">
           <h3>Disk Usage & Cleanup</h3>
-          <p class="description">See your disk usage and choose a drive to clean temporary files.</p>
+          <p class="description">Monitor disk space and clean temporary files from your drives.</p>
 
           <div id="diskList"></div>
 
-          <button id="chooseDriveBtn">Choose Drive to Clean</button>
+          <!-- Hide the old button - functionality moved to individual drive buttons -->
+          <button id="chooseDriveBtn" style="display: none;">Choose Drive to Clean</button>
 
           <div class="loadingMessage" style="display: none;">
             <div class="spinner"></div>
@@ -244,8 +306,213 @@
       </div>
 
       <div id="drivers" class="section">
-        <h2>Driver Tools</h2>
-        <p>Coming soon...</p>
+        <!-- Driver Scanner & Update Assistant Card -->
+        <div class="tool-card coming-soon">
+          <h3><span class="icon">🔍</span> Driver Scanner & Update Assistant</h3>
+          <p class="description">Scan your system for outdated drivers and automatically download the latest versions.</p>
+          <div class="coming-soon-content">
+            <div class="feature-list">
+              <div class="feature-item">
+                <span class="feature-icon">✅</span>
+                <span class="feature-text">Automatic driver detection</span>
+              </div>
+              <div class="feature-item">
+                <span class="feature-icon">✅</span>
+                <span class="feature-text">Version comparison & updates</span>
+              </div>
+              <div class="feature-item">
+                <span class="feature-icon">✅</span>
+                <span class="feature-text">Manufacturer verification</span>
+              </div>
+              <div class="feature-item">
+                <span class="feature-icon">✅</span>
+                <span class="feature-text">Security issue flagging</span>
+              </div>
+              <div class="feature-item">
+                <span class="feature-icon">✅</span>
+                <span class="feature-text">Safe automatic installation</span>
+              </div>
+            </div>
+            <button class="coming-soon-btn" disabled>
+              <span class="btn-icon">🚧</span>
+              Coming Soon
+            </button>
+          </div>
+        </div>
+
+        <!-- Driver Backup & Restore Card -->
+        <div class="tool-card coming-soon">
+          <h3><span class="icon">💾</span> Driver Backup & Restore</h3>
+          <p class="description">Create backups of your current drivers and restore them when needed.</p>
+          <div class="coming-soon-content">
+            <div class="feature-list">
+              <div class="feature-item">
+                <span class="feature-icon">✅</span>
+                <span class="feature-text">Full driver backup</span>
+              </div>
+              <div class="feature-item">
+                <span class="feature-icon">✅</span>
+                <span class="feature-text">Selective restore</span>
+              </div>
+              <div class="feature-item">
+                <span class="feature-icon">✅</span>
+                <span class="feature-text">Rollback protection</span>
+              </div>
+            </div>
+            <button class="coming-soon-btn" disabled>
+              <span class="btn-icon">🚧</span>
+              Coming Soon
+            </button>
+          </div>
+        </div>
+
+        <!-- Hardware Information Card -->
+        <div class="tool-card coming-soon">
+          <h3><span class="icon">🖨️</span> Hardware Information</h3>
+          <p class="description">View detailed information about your hardware components and their drivers.</p>
+          <div class="coming-soon-content">
+            <div class="feature-list">
+              <div class="feature-item">
+                <span class="feature-icon">✅</span>
+                <span class="feature-text">Device specifications</span>
+              </div>
+              <div class="feature-item">
+                <span class="feature-icon">✅</span>
+                <span class="feature-text">Driver versions</span>
+              </div>
+              <div class="feature-item">
+                <span class="feature-icon">✅</span>
+                <span class="feature-text">Performance metrics</span>
+              </div>
+            </div>
+            <button class="coming-soon-btn" disabled>
+              <span class="btn-icon">🚧</span>
+              Coming Soon
+            </button>
+          </div>
+        </div>
+
+        <!-- Development Notice -->
+        <div class="tool-card development-notice">
+          <h3><span class="icon">⚡</span> Driver Tools in Development</h3>
+          <p class="description">These powerful driver management features are currently being developed and will be available in a future update.</p>
+          <div class="development-info">
+            <div class="development-item">
+              <span class="development-label">Expected Release:</span>
+              <span class="development-value">Q2 2024</span>
+            </div>
+            <div class="development-item">
+              <span class="development-label">Status:</span>
+              <span class="development-value">Active Development</span>
+            </div>
+            <div class="development-item">
+              <span class="development-label">Priority:</span>
+              <span class="development-value">High</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="settings" class="section">
+        <!-- Appearance Settings Card -->
+        <div class="tool-card" id="appearanceCard">
+          <h3><span class="icon">🎨</span> Appearance</h3>
+          <p class="description">Customize the look and feel of PC Buddy.</p>
+          
+          <div class="setting-group">
+            <div class="setting-item">
+              <div class="setting-info">
+                <label class="setting-label">Theme</label>
+                <span class="setting-description">Choose between light and dark mode</span>
+              </div>
+              <div class="setting-control">
+                <label class="theme-toggle">
+                  <input type="checkbox" id="darkModeToggle">
+                  <span class="theme-slider">
+                    <span class="theme-icon light">☀️</span>
+                    <span class="theme-icon dark">🌙</span>
+                  </span>
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Behavior Settings Card -->
+        <div class="tool-card" id="behaviorCard">
+          <h3><span class="icon">⚡</span> Behavior</h3>
+          <p class="description">Configure how PC Buddy behaves when you open it.</p>
+          
+          <div class="setting-group">
+            <div class="setting-item">
+              <div class="setting-info">
+                <label class="setting-label">Default Landing Page</label>
+                <span class="setting-description">Choose which section opens when you start PC Buddy</span>
+              </div>
+              <div class="setting-control">
+                <select id="defaultPageSelect" class="setting-select">
+                  <option value="systemHealth">System Health</option>
+                  <option value="shortcuts">Shortcuts</option>
+                  <option value="drivers">Drivers</option>
+                </select>
+              </div>
+            </div>
+            
+            <div class="setting-item">
+              <div class="setting-info">
+                <label class="setting-label">Auto-refresh System Info</label>
+                <span class="setting-description">Automatically update system information every minute</span>
+              </div>
+              <div class="setting-control">
+                <label class="toggle-switch">
+                  <input type="checkbox" id="autoRefreshToggle" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+            </div>
+
+            <div class="setting-item">
+              <div class="setting-info">
+                <label class="setting-label">Backup Location</label>
+                <span class="setting-description">Choose where system backups are stored</span>
+              </div>
+              <div class="setting-control">
+                <div class="backup-path-control">
+                  <input type="text" id="backupPathInput" class="setting-input" readonly>
+                  <button id="selectBackupPath" class="setting-button">Browse</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- About Settings Card -->
+        <div class="tool-card" id="aboutCard">
+          <h3><span class="icon">ℹ️</span> About PC Buddy</h3>
+          <p class="description">Information about this application.</p>
+          
+          <div class="about-info">
+            <div class="about-item">
+              <span class="about-label">Version:</span>
+              <span class="about-value" id="aboutVersion">v0.2.0</span>
+            </div>
+            <div class="about-item">
+              <span class="about-label">Author:</span>
+              <span class="about-value">Sean McKeen</span>
+            </div>
+            <div class="about-item">
+              <span class="about-label">Built with:</span>
+              <span class="about-value">Electron, HTML, CSS, JavaScript</span>
+            </div>
+          </div>
+
+          <div class="about-actions">
+            <button class="about-btn" onclick="resetAllSettings()">
+              <span class="btn-icon">🔄</span>
+              Reset All Settings
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
