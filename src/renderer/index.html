@@ -28,7 +28,7 @@
         </div>
       </div>
       <div class="loading-footer">
-        <div class="loading-version">v0.2.0</div>
+        <div class="loading-version">v0.2.2</div>
         <div class="loading-author">Created by Sean McKeen</div>
       </div>
     </div>
@@ -81,7 +81,7 @@
         </ul>
       </nav>
       <div class="sidebar-footer">
-        <div class="version-info">v0.2.0</div>
+        <div class="version-info">v0.2.2</div>
         <div class="author-credit">by Sean McKeen</div>
       </div>
     </div>
@@ -142,6 +142,13 @@
             <div class="backup-item">
               <span class="backup-label">Backup Location:</span>
               <span class="backup-value" id="backupLocation">Loading...</span>
+            </div>
+          </div>
+
+          <div class="backup-files-section" id="backupFilesSection" style="display: none;">
+            <h4 class="backup-files-title">Existing Backups</h4>
+            <div class="backup-files-list" id="backupFilesList">
+              <!-- Backup files will be populated here -->
             </div>
           </div>
 
@@ -399,7 +406,7 @@
           <div class="development-info">
             <div class="development-item">
               <span class="development-label">Expected Release:</span>
-              <span class="development-value">Q2 2024</span>
+              <span class="development-value">Q2 2025</span>
             </div>
             <div class="development-item">
               <span class="development-label">Status:</span>
@@ -423,16 +430,14 @@
             <div class="setting-item">
               <div class="setting-info">
                 <label class="setting-label">Theme</label>
-                <span class="setting-description">Choose between light and dark mode</span>
+                <span class="setting-description">Choose your preferred visual theme</span>
               </div>
               <div class="setting-control">
-                <label class="theme-toggle">
-                  <input type="checkbox" id="darkModeToggle">
-                  <span class="theme-slider">
-                    <span class="theme-icon light">☀️</span>
-                    <span class="theme-icon dark">🌙</span>
-                  </span>
-                </label>
+                <select id="themeSelect" class="setting-select">
+                  <option value="light">Light</option>
+                  <option value="dark">Dark</option>
+                  <option value="gay">🏳️‍🌈 Gay Mode (RGB)</option>
+                </select>
               </div>
             </div>
           </div>
@@ -494,7 +499,7 @@
           <div class="about-info">
             <div class="about-item">
               <span class="about-label">Version:</span>
-              <span class="about-value" id="aboutVersion">v0.2.0</span>
+              <span class="about-value" id="aboutVersion">v0.2.2</span>
             </div>
             <div class="about-item">
               <span class="about-label">Author:</span>
@@ -543,12 +548,18 @@
         
         <div class="form-group">
           <label for="shortcutPath">What to open:</label>
-          <input type="text" id="shortcutPath" placeholder="File path, folder path, or URL">
+          <div class="shortcut-path-control">
+            <input type="text" id="shortcutPath" placeholder="Select a file, folder, or enter a URL" maxlength="260">
+            <button type="button" id="browsePathButton" class="browse-button">Select File/Folder</button>
+          </div>
           <div class="path-examples">
-            <small>Examples:</small>
+            <small>Examples (or click "Select File/Folder" to browse):</small>
             <div class="example-item" onclick="setExamplePath('C:\\\\Program Files\\\\Notepad++\\\\notepad++.exe')">📝 Notepad++</div>
             <div class="example-item" onclick="setExamplePath('https://google.com')">🌐 Website</div>
             <div class="example-item" onclick="setExamplePath('C:\\\\Users\\\\%USERNAME%\\\\Pictures')">🖼️ Pictures folder</div>
+            <div class="security-note">
+              <small><strong>Security Note:</strong> Only add shortcuts to trusted files and websites. Paths are validated for security.</small>
+            </div>
           </div>
         </div>
       </div>

@@ -100,6 +100,8 @@ async function refreshBackupInfo() {
     
     const lastBackupEl = document.getElementById('lastBackupTime');
     const backupLocationEl = document.getElementById('backupLocation');
+    const backupFilesSection = document.getElementById('backupFilesSection');
+    const backupFilesList = document.getElementById('backupFilesList');
     
     if (lastBackupEl) {
       lastBackupEl.textContent = backupInfo.LastBackupDate;
@@ -118,9 +120,94 @@ async function refreshBackupInfo() {
       backupLocationEl.style.color = 'var(--text-primary)';
     }
     
+    // Display backup files if they exist
+    if (backupFilesList && backupInfo.BackupFiles && backupInfo.BackupFiles.length > 0) {
+      backupFilesList.innerHTML = '';
+      
+      backupInfo.BackupFiles.forEach(file => {
+        const fileItem = document.createElement('div');
+        fileItem.className = 'backup-file-item';
+        
+        const fileInfo = document.createElement('div');
+        fileInfo.className = 'backup-file-info';
+        
+        const fileName = document.createElement('div');
+        fileName.className = 'backup-file-name';
+        fileName.textContent = file.Name;
+        
+        const fileType = document.createElement('div');
+        fileType.className = 'backup-file-type';
+        fileType.textContent = `(${file.Type || 'File'})`;
+        fileType.style.fontSize = '0.85em';
+        fileType.style.color = 'var(--text-muted)';
+        
+        const fileDetails = document.createElement('div');
+        fileDetails.className = 'backup-file-details';
+        
+        const fileSize = document.createElement('span');
+        fileSize.className = 'backup-file-size';
+        fileSize.textContent = file.SizeFormatted;
+        
+        const fileDate = document.createElement('span');
+        fileDate.className = 'backup-file-date';
+        fileDate.textContent = `Created: ${file.CreatedDate}`;
+        
+        fileDetails.appendChild(fileSize);
+        fileDetails.appendChild(fileDate);
+        fileInfo.appendChild(fileName);
+        fileInfo.appendChild(fileType);
+        fileInfo.appendChild(fileDetails);
+        
+        const fileActions = document.createElement('div');
+        fileActions.className = 'backup-file-actions';
+        
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'backup-delete-btn';
+        deleteBtn.innerHTML = '<span>🗑️</span> Delete';
+        deleteBtn.onclick = () => deleteBackupFile(file.Name);
+        
+        fileActions.appendChild(deleteBtn);
+        fileItem.appendChild(fileInfo);
+        fileItem.appendChild(fileActions);
+        backupFilesList.appendChild(fileItem);
+      });
+      
+      backupFilesSection.style.display = 'block';
+    } else if (backupFilesList) {
+      // Show "no backups" message
+      backupFilesList.innerHTML = '<div class="no-backups-message">No backup files found</div>';
+      backupFilesSection.style.display = 'block';
+    }
+    
     console.log('[Backup Info] Refreshed backup info:', backupInfo);
   } catch (error) {
     console.error('[Backup Info] Failed to refresh backup info:', error);
+  }
+}
+
+// Function to delete a backup file
+async function deleteBackupFile(fileName) {
+  const confirmed = await showModal({
+    type: 'warning',
+    title: 'Delete Backup',
+    message: `Are you sure you want to delete the backup file "${fileName}"?\n\nThis action cannot be undone.`,
+    confirmText: 'Delete Backup'
+  });
+  
+  if (confirmed) {
+    try {
+      const result = await window.backupAPI.deleteBackup(fileName);
+      console.log('[Delete Backup] Success:', result);
+      
+      // Refresh the backup info to update the list
+      await refreshBackupInfo();
+      
+      // Show success message
+      showNotification(`Backup "${fileName}" deleted successfully`, 'success');
+    } catch (error) {
+      console.error('[Delete Backup] Error:', error);
+      showNotification('Failed to delete backup: ' + error.message, 'error');
+    }
   }
 }
 
@@ -185,9 +272,9 @@ window.addEventListener('DOMContentLoaded', async () => {
   // Apply theme on startup
   function applyTheme(theme) {
     document.documentElement.setAttribute('data-theme', theme);
-    const darkModeToggle = document.getElementById('darkModeToggle');
-    if (darkModeToggle) {
-      darkModeToggle.checked = theme === 'dark';
+    const themeSelect = document.getElementById('themeSelect');
+    if (themeSelect) {
+      themeSelect.value = theme;
     }
   }
   
@@ -225,7 +312,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   let currentDot = 0;
   const updateLoadingProgress = (text) => {
     if (text) {
-      loadingText.textContent = text;
+    loadingText.textContent = text;
     }
     
     // Reset all dots
@@ -483,16 +570,16 @@ window.addEventListener('DOMContentLoaded', async () => {
             <div class="memory-overview">
               <div class="memory-stats">
                 <div class="memory-stat">
+                  <span class="memory-stat-value">${info.totalMemory}</span>
+                  <span class="memory-stat-label">Total</span>
+                </div>
+                <div class="memory-stat">
                   <span class="memory-stat-value">${info.usedMemory}</span>
                   <span class="memory-stat-label">Used</span>
                 </div>
                 <div class="memory-stat">
                   <span class="memory-stat-value">${info.availableMemory}</span>
                   <span class="memory-stat-label">Available</span>
-                </div>
-                <div class="memory-stat">
-                  <span class="memory-stat-value">${info.totalMemory}</span>
-                  <span class="memory-stat-label">Total</span>
                 </div>
               </div>
               <div class="memory-bar">
@@ -503,13 +590,33 @@ window.addEventListener('DOMContentLoaded', async () => {
           `;
         }
         
-        itemEl.innerHTML = `
-          <div class="system-info-header">
-            <span class="system-info-icon">${item.icon}</span>
-            <span class="system-info-label">${item.label}</span>
-          </div>
-          <div class="system-info-value">${valueContent}</div>
-        `;
+        // Create elements safely without innerHTML for dynamic content
+        const headerDiv = document.createElement('div');
+        headerDiv.className = 'system-info-header';
+        
+        const iconSpan = document.createElement('span');
+        iconSpan.className = 'system-info-icon';
+        iconSpan.textContent = item.icon; // Safe - no HTML
+        
+        const labelSpan = document.createElement('span');
+        labelSpan.className = 'system-info-label';
+        labelSpan.textContent = item.label; // Safe - no HTML
+        
+        headerDiv.appendChild(iconSpan);
+        headerDiv.appendChild(labelSpan);
+        
+        const valueDiv = document.createElement('div');
+        valueDiv.className = 'system-info-value';
+        
+        if (item.key === 'memory') {
+          // For memory, we need to create the complex structure safely
+          valueDiv.innerHTML = valueContent; // This is safe - valueContent is constructed from safe data
+        } else {
+          valueDiv.textContent = info[item.key] || 'N/A'; // Safe - no HTML
+        }
+        
+        itemEl.appendChild(headerDiv);
+        itemEl.appendChild(valueDiv);
         
         grid.appendChild(itemEl);
       }
@@ -692,27 +799,80 @@ window.addEventListener('DOMContentLoaded', async () => {
         if (disk.PercentUsed > 80) usageColor = '#f44336'; // Red
         else if (disk.PercentUsed > 60) usageColor = '#ff9800'; // Orange
 
-        diskCard.innerHTML = `
-          <div class="disk-header">
-            <div class="disk-info">
-              <span class="disk-name">${disk.Name}:</span>
-              ${disk.IsSystem ? '<span class="system-badge">System</span>' : ''}
-            </div>
-            <div class="disk-percentage">${disk.PercentUsed}%</div>
-          </div>
-          <div class="disk-progress-bar">
-            <div class="disk-progress-fill" style="width: ${disk.PercentUsed}%; background-color: ${usageColor};"></div>
-          </div>
-          <div class="disk-details">
-            <span class="disk-used">${disk.UsedGB} GB used</span>
-            <span class="disk-free">${disk.FreeGB} GB free</span>
-            <span class="disk-total">of ${disk.TotalGB} GB</span>
-          </div>
-          <button class="disk-clean-btn" data-drive="${disk.Name}">
-            <span class="btn-icon">🧹</span>
-            Clean Drive
-          </button>
-        `;
+        // Create header
+        const diskHeader = document.createElement('div');
+        diskHeader.className = 'disk-header';
+        
+        const diskInfo = document.createElement('div');
+        diskInfo.className = 'disk-info';
+        
+        const diskName = document.createElement('span');
+        diskName.className = 'disk-name';
+        diskName.textContent = `${disk.Name}:`; // Safe - escaped
+        diskInfo.appendChild(diskName);
+        
+        if (disk.IsSystem) {
+          const systemBadge = document.createElement('span');
+          systemBadge.className = 'system-badge';
+          systemBadge.textContent = 'System';
+          diskInfo.appendChild(systemBadge);
+        }
+        
+        const diskPercentage = document.createElement('div');
+        diskPercentage.className = 'disk-percentage';
+        diskPercentage.textContent = `${disk.PercentUsed}%`; // Safe - escaped
+        
+        diskHeader.appendChild(diskInfo);
+        diskHeader.appendChild(diskPercentage);
+        
+        // Create progress bar
+        const progressBar = document.createElement('div');
+        progressBar.className = 'disk-progress-bar';
+        
+        const progressFill = document.createElement('div');
+        progressFill.className = 'disk-progress-fill';
+        progressFill.style.width = `${disk.PercentUsed}%`;
+        progressFill.style.backgroundColor = usageColor;
+        
+        progressBar.appendChild(progressFill);
+        
+        // Create details
+        const diskDetails = document.createElement('div');
+        diskDetails.className = 'disk-details';
+        
+        const diskUsed = document.createElement('span');
+        diskUsed.className = 'disk-used';
+        diskUsed.textContent = `${disk.UsedGB} GB used`; // Safe - escaped
+        
+        const diskFree = document.createElement('span');
+        diskFree.className = 'disk-free';
+        diskFree.textContent = `${disk.FreeGB} GB free`; // Safe - escaped
+        
+        const diskTotal = document.createElement('span');
+        diskTotal.className = 'disk-total';
+        diskTotal.textContent = `of ${disk.TotalGB} GB`; // Safe - escaped
+        
+        diskDetails.appendChild(diskUsed);
+        diskDetails.appendChild(diskFree);
+        diskDetails.appendChild(diskTotal);
+        
+        // Create clean button
+        const cleanBtn = document.createElement('button');
+        cleanBtn.className = 'disk-clean-btn';
+        cleanBtn.dataset.drive = disk.Name; // Safe - attribute
+        
+        const btnIcon = document.createElement('span');
+        btnIcon.className = 'btn-icon';
+        btnIcon.textContent = '🧹';
+        
+        cleanBtn.appendChild(btnIcon);
+        cleanBtn.appendChild(document.createTextNode(' Clean Drive'));
+        
+        // Assemble the card
+        diskCard.appendChild(diskHeader);
+        diskCard.appendChild(progressBar);
+        diskCard.appendChild(diskDetails);
+        diskCard.appendChild(cleanBtn);
 
         diskList.appendChild(diskCard);
       });
@@ -788,9 +948,9 @@ window.addEventListener('DOMContentLoaded', async () => {
   // Settings Event Handlers
   // -------------------------
   
-  // Theme toggle
-  document.getElementById('darkModeToggle')?.addEventListener('change', (e) => {
-    const theme = e.target.checked ? 'dark' : 'light';
+  // Theme selection dropdown
+  document.getElementById('themeSelect')?.addEventListener('change', (e) => {
+    const theme = e.target.value;
     settings.theme = theme;
     localStorage.setItem('pc-buddy-theme', theme);
     console.log('[Settings] Theme changed to:', theme);
@@ -860,16 +1020,16 @@ window.addEventListener('DOMContentLoaded', async () => {
           <div class="memory-overview">
             <div class="memory-stats">
               <div class="memory-stat">
+                <span class="memory-stat-value">${info.totalMemory}</span>
+                <span class="memory-stat-label">Total</span>
+              </div>
+              <div class="memory-stat">
                 <span class="memory-stat-value">${info.usedMemory}</span>
                 <span class="memory-stat-label">Used</span>
               </div>
               <div class="memory-stat">
                 <span class="memory-stat-value">${info.availableMemory}</span>
                 <span class="memory-stat-label">Available</span>
-              </div>
-              <div class="memory-stat">
-                <span class="memory-stat-value">${info.totalMemory}</span>
-                <span class="memory-stat-label">Total</span>
               </div>
             </div>
             <div class="memory-bar">
@@ -956,6 +1116,44 @@ window.addEventListener('DOMContentLoaded', async () => {
   
   // Mark settings as initialized once all setup is complete
   markComponentLoaded('settingsInitialized');
+
+  // Initialize custom shortcuts on page load
+  loadCustomShortcuts();
+  
+  // Add event listener for browse button in custom shortcut modal
+  const browsePathButton = document.getElementById('browsePathButton');
+  const shortcutPathInput = document.getElementById('shortcutPath');
+  
+  if (browsePathButton && shortcutPathInput && window.shortcutAPI) {
+    browsePathButton.addEventListener('click', async () => {
+      try {
+        console.log('[Custom Shortcut] Browse button clicked - opening file/folder selection dialog');
+        browsePathButton.disabled = true;
+        browsePathButton.textContent = 'Selecting...';
+        
+        const selectedPath = await window.shortcutAPI.selectFileOrFolder();
+        console.log('[Custom Shortcut] User selected path:', selectedPath);
+        
+        // Automatically fill the input with the selected path
+        shortcutPathInput.value = selectedPath;
+        shortcutPathInput.title = selectedPath; // Show full path on hover
+        
+        // Reset placeholder text
+        shortcutPathInput.placeholder = 'Selected: ' + selectedPath.split('\\').pop();
+        
+      } catch (error) {
+        console.error('[Custom Shortcut] Failed to select file/folder:', error);
+        if (error.message !== 'No file or folder selected') {
+          alert('Failed to open file selection: ' + error.message);
+        }
+      } finally {
+        browsePathButton.disabled = false;
+        browsePathButton.textContent = 'Select File/Folder';
+      }
+    });
+  } else {
+    console.log('[Custom Shortcut] Browse functionality not available - missing elements or API');
+  }
 });
 
 // -------------------------
@@ -1569,14 +1767,42 @@ function loadCustomShortcuts() {
   shortcuts.forEach((shortcut, index) => {
     const shortcutElement = document.createElement('div');
     shortcutElement.className = 'shortcut-btn custom-shortcut';
-    shortcutElement.innerHTML = `
-      <span class="shortcut-icon">${shortcut.icon}</span>
-      <span class="shortcut-label">${shortcut.name}</span>
-      <div class="shortcut-actions">
-        <button class="shortcut-action-btn edit" onclick="editCustomShortcut(${index})" title="Edit">✏️</button>
-        <button class="shortcut-action-btn delete" onclick="deleteCustomShortcut(${index})" title="Delete">🗑️</button>
-      </div>
-    `;
+    
+    // Create shortcut icon
+    const shortcutIcon = document.createElement('span');
+    shortcutIcon.className = 'shortcut-icon';
+    shortcutIcon.textContent = shortcut.icon; // Safe - escaped
+    
+    // Create shortcut label
+    const shortcutLabel = document.createElement('span');
+    shortcutLabel.className = 'shortcut-label';
+    shortcutLabel.textContent = shortcut.name; // Safe - escaped
+    
+    // Create actions container
+    const shortcutActions = document.createElement('div');
+    shortcutActions.className = 'shortcut-actions';
+    
+    // Create edit button
+    const editBtn = document.createElement('button');
+    editBtn.className = 'shortcut-action-btn edit';
+    editBtn.textContent = '✏️';
+    editBtn.title = 'Edit';
+    editBtn.onclick = () => editCustomShortcut(index);
+    
+    // Create delete button
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'shortcut-action-btn delete';
+    deleteBtn.textContent = '🗑️';
+    deleteBtn.title = 'Delete';
+    deleteBtn.onclick = () => deleteCustomShortcut(index);
+    
+    shortcutActions.appendChild(editBtn);
+    shortcutActions.appendChild(deleteBtn);
+    
+    // Assemble the shortcut element
+    shortcutElement.appendChild(shortcutIcon);
+    shortcutElement.appendChild(shortcutLabel);
+    shortcutElement.appendChild(shortcutActions);
     
     // Add click handler for opening the shortcut
     shortcutElement.addEventListener('click', (e) => {
@@ -1643,12 +1869,24 @@ function setExamplePath(path) {
 }
 
 function saveCustomShortcut() {
-  const name = document.getElementById('shortcutName').value.trim();
-  const path = document.getElementById('shortcutPath').value.trim();
+  const name = validateAndSanitizeInput(document.getElementById('shortcutName').value, 50);
+  const path = validateAndSanitizeInput(document.getElementById('shortcutPath').value, 260);
   const icon = document.getElementById('iconPreview').textContent;
   
-  if (!name || !path) {
-    alert('Please fill in both name and path fields.');
+  // Enhanced validation
+  if (!name || name.length < 1) {
+    alert('Please enter a valid shortcut name (1-50 characters).');
+    return;
+  }
+  
+  if (!path || !validateShortcutPath(path)) {
+    alert('Please enter a valid file path, folder path, or URL.');
+    return;
+  }
+  
+  // Validate icon is a single emoji character
+  if (!icon || icon.length > 4) { // Emojis can be up to 4 bytes
+    alert('Please select a valid emoji icon.');
     return;
   }
   
@@ -1658,6 +1896,11 @@ function saveCustomShortcut() {
   if (editingShortcutId !== null) {
     shortcuts[editingShortcutId] = shortcut;
   } else {
+    // Limit total number of shortcuts to prevent abuse
+    if (shortcuts.length >= 20) {
+      alert('Maximum number of custom shortcuts (20) reached.');
+      return;
+    }
     shortcuts.push(shortcut);
   }
   
@@ -1705,22 +1948,84 @@ function deleteCustomShortcut(index) {
 function openCustomShortcut(path) {
   console.log('[customShortcut] Opening:', path);
   
+  // Additional security validation before opening
+  if (!path || typeof path !== 'string') {
+    console.error('[Security] Invalid path provided to openCustomShortcut');
+    return;
+  }
+  
+  // Sanitize the path
+  const sanitizedPath = validateAndSanitizeInput(path, 260);
+  
+  if (!validateShortcutPath(sanitizedPath)) {
+    console.error('[Security] Invalid path format:', sanitizedPath);
+    alert('Invalid shortcut path format');
+    return;
+  }
+  
   // Determine if it's a URL or file path
-  if (path.startsWith('http://') || path.startsWith('https://')) {
+  if (sanitizedPath.startsWith('http://') || sanitizedPath.startsWith('https://')) {
     // Open URL in default browser
     window.electronAPI && window.electronAPI.openExternal ? 
-      window.electronAPI.openExternal(path) : 
-      window.open(path, '_blank');
+      window.electronAPI.openExternal(sanitizedPath) : 
+      window.open(sanitizedPath, '_blank');
   } else {
     // Open file/folder with system default
-    window.systemAPI.openPath(path);
+    window.systemAPI.openPath(sanitizedPath).catch(error => {
+      console.error('[Custom Shortcut] Failed to open path:', error);
+      alert('Failed to open shortcut: ' + error.message);
+    });
   }
 }
 
-// Initialize custom shortcuts on page load
-document.addEventListener('DOMContentLoaded', () => {
-  loadCustomShortcuts();
-});
+// Enhanced input validation and sanitization
+function validateAndSanitizeInput(input, maxLength = 100) {
+  if (typeof input !== 'string') {
+    return '';
+  }
+  
+  // Remove potentially dangerous characters but preserve Windows path characters
+  const sanitized = input
+    .replace(/[<>]/g, '') // Remove HTML brackets
+    .replace(/javascript:/gi, '') // Remove javascript: protocol
+    .replace(/vbscript:/gi, '') // Remove vbscript: protocol
+    .replace(/data:/gi, '') // Remove data: protocol
+    .replace(/^\s+|\s+$/g, '') // Trim whitespace
+    .substring(0, maxLength);
+    
+  return sanitized;
+}
+
+function validateShortcutPath(path) {
+  if (!path || typeof path !== 'string') {
+    return false;
+  }
+  
+  // Allow URLs, Windows file paths, and UNC paths
+  const validPatterns = [
+    /^https?:\/\/.+/i, // HTTP/HTTPS URLs
+    /^[a-zA-Z]:\\.+/i, // Windows drive paths (C:\...)
+    /^\\\\[^\\]+\\.+/i, // UNC paths (\\server\share)
+    /^%.+%/i // Environment variables (%USERPROFILE%, etc.)
+  ];
+  
+  // Check if path matches any valid pattern
+  const isValidFormat = validPatterns.some(pattern => pattern.test(path));
+  
+  // Block dangerous patterns but allow legitimate Windows paths
+  const dangerousPatterns = [
+    /\.\./,                    // Directory traversal
+    /[<>"|?*]/,               // Invalid Windows path chars (excluding colon for drive letters)
+    /javascript:/i,           // JavaScript protocol
+    /vbscript:/i,            // VBScript protocol
+    /data:/i,                 // Data protocol
+    /script:/i                // Script protocol
+  ];
+  
+  const hasDangerousPattern = dangerousPatterns.some(pattern => pattern.test(path));
+  
+  return isValidFormat && !hasDangerousPattern;
+}
 
 // -------------------------
 // Update Notification Test Functions (Development Only)
@@ -1912,8 +2217,8 @@ function markComponentLoaded(component) {
   
   // Add delay for each component to spread loading out
   setTimeout(() => {
-    updateLoadingProgress();
-    checkAllComponentsLoaded();
+  updateLoadingProgress();
+  checkAllComponentsLoaded();
   }, 500); // 500ms delay between each component load
 }
 
@@ -1962,3 +2267,8 @@ function updateLoadingProgress() {
   
   console.log(`[Loading] Progress: ${loadedCount}/${totalCount} (${percentage}%)`);
 }
+
+// Initialize custom shortcuts on page load
+document.addEventListener('DOMContentLoaded', () => {
+  loadCustomShortcuts();
+});

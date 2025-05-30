@@ -4,7 +4,7 @@
 
 **🚀 A Modern Windows System Optimization & Management Tool**
 
-[![Version](https://img.shields.io/badge/version-0.2.1-blue.svg)](https://github.com/SeanMcKeen/pc-buddy/releases)
+[![Version](https://img.shields.io/badge/version-0.2.2-blue.svg)](https://github.com/SeanMcKeen/pc-buddy/releases)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows-lightgrey.svg)](https://www.microsoft.com/windows)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D16.0.0-brightgreen.svg)](https://nodejs.org/)
@@ -61,6 +61,7 @@ PC Buddy is a **comprehensive Windows system optimization tool** built with Elec
 ### ✨ Custom Shortcuts System
 - **Emoji Icons**: 200+ emojis across 8 categories (Smileys, People, Animals, Food, Activities, Travel, Objects, Symbols)
 - **Smart Path Recognition**: Files, folders, websites, system commands
+- **Browse Button Integration**: Easy file/folder selection with native system dialogs
 - **Persistent Storage**: Shortcuts survive app restarts
 - **Full CRUD**: Create, edit, delete with hover actions
 
@@ -154,7 +155,32 @@ npm run dist
 
 ## 📝 Version History
 
-### 0.2.1 (Current)
+### 0.2.2 (Current)
+- 🔒 **Enhanced Security Framework**
+  - Comprehensive security policy document with 2025 best practices
+  - Vulnerability reporting procedures and supported versions
+  - Enterprise-grade security considerations and configuration guidelines
+  - PowerShell script security enhancements and audit logging recommendations
+
+- ✨ **Custom Shortcuts Enhancement**
+  - Native browse button for easy file and folder selection
+  - Enhanced file type filters (executables, documents, media files)
+  - Improved path input with responsive design and better UX
+  - Smart dialog with support for both files and directories
+
+- 🎨 **User Interface Improvements**
+  - Enhanced custom shortcuts modal with modern browse controls
+  - Improved responsive design for mobile and tablet screens
+  - Better visual hierarchy and accessibility in file selection
+  - Consistent styling across all browse controls
+
+- 🛠️ **Development & Maintenance**
+  - Updated development timeline references to Q2 2025
+  - Enhanced API structure with dedicated shortcut path selection
+  - Improved error handling and user feedback mechanisms
+  - Code organization improvements and documentation updates
+
+### 0.2.1
 - 🔄 **Major Backup System Overhaul**
   - Registry-integrated backup path selection and storage
   - Recursive backup prevention (excludes backup folders automatically)
@@ -188,11 +214,6 @@ npm run dist
 - 🚀 Enhanced startup management with safety ratings
 - 💾 Auto-refresh disk usage after cleanup
 - 🎭 Improved animations and loading screens
-
-### 0.1.3
-- 🔧 Added system repair utilities
-- 📊 Real-time system information
-- 🎨 Modern UI design
 
 ## 👨‍💻 Author & License
 

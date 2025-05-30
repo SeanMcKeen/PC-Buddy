@@ -16,18 +16,6 @@ function execCommand(command, description) {
   });
 }
 
-// Helper function to execute system settings commands  
-function openSystemSetting(command, name) {
-  execCommand(command, `Opening ${name}`);
-}
-
-// Helper function to format uptime
-function formatUptime(seconds) {
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  return `${hours}h ${minutes}m`;
-}
-
 // Get app version from package.json
 const appVersion = require('../../package.json').version;
 
@@ -157,8 +145,26 @@ contextBridge.exposeInMainWorld('cleanupAPI', {
   cleanDrive: (driveLetter) => ipcRenderer.invoke('clean-drive', driveLetter)
 });
 
+// Shortcut API
+contextBridge.exposeInMainWorld('shortcutAPI', {
+  openFileExplorer: () => ipcRenderer.invoke('open-file-explorer'),
+  selectFileOrFolder: () => ipcRenderer.invoke('select-file-or-folder')
+});
+
+// Enhanced system API with input validation
 contextBridge.exposeInMainWorld('systemAPI', {
-  openPath: (path) => shell.openPath(path),
+  openPath: (filePath) => {
+    // Validate path input to prevent command injection
+    if (typeof filePath !== 'string' || filePath.length === 0 || filePath.length > 260) {
+      console.error('[Security] Invalid file path provided');
+      return Promise.reject(new Error('Invalid file path'));
+    }
+    
+    // Sanitize path - remove potentially dangerous characters
+    const sanitizedPath = filePath.replace(/[<>:"|?*]/g, '');
+    
+    return shell.openPath(sanitizedPath);
+  },
   openControlPanel: () => shell.openExternal('ms-settings:appsfeatures'),
   openProgramsAndFeatures: () => shell.openExternal('appwiz.cpl'),
   openDeviceManager: () => shell.openExternal('devmgmt.msc'),
@@ -168,7 +174,37 @@ contextBridge.exposeInMainWorld('systemAPI', {
   openDisplaySettings: () => shell.openExternal('ms-settings:display'),
   openSoundSettings: () => shell.openExternal('ms-settings:sound'),
   openWindowsUpdate: () => shell.openExternal('ms-settings:windowsupdate'),
-  runPowerShellCommand: (command) => ipcRenderer.invoke('run-powershell-command', command)
+  runPowerShellCommand: (command) => {
+    // Validate PowerShell command input
+    if (typeof command !== 'string' || command.length === 0 || command.length > 1000) {
+      console.error('[Security] Invalid PowerShell command provided');
+      return Promise.reject(new Error('Invalid command'));
+    }
+    
+    // Basic command sanitization - reject dangerous patterns
+    const dangerousPatterns = [
+      /invoke-expression/i,
+      /iex\s/i,
+      /download.*file/i,
+      /start-process/i,
+      /invoke-webrequest/i,
+      /curl\s/i,
+      /wget\s/i,
+      /&\s*[^&]/,  // Command chaining
+      /\|\s*[^|]/,  // Piping to other commands
+      /;\s*/,       // Command separation
+      /`/           // Backticks
+    ];
+    
+    for (const pattern of dangerousPatterns) {
+      if (pattern.test(command)) {
+        console.error('[Security] Potentially dangerous PowerShell command blocked:', command);
+        return Promise.reject(new Error('Command contains potentially dangerous patterns'));
+      }
+    }
+    
+    return ipcRenderer.invoke('run-powershell-command', command);
+  }
 });
 
 // Backup API
@@ -177,5 +213,6 @@ contextBridge.exposeInMainWorld('backupAPI', {
   getBackupInfo: () => ipcRenderer.invoke('get-backup-info'),
   openBackupLocation: () => ipcRenderer.invoke('open-backup-location'),
   selectBackupPath: () => ipcRenderer.invoke('select-backup-path'),
-  getBackupPath: () => ipcRenderer.invoke('get-backup-path')
+  getBackupPath: () => ipcRenderer.invoke('get-backup-path'),
+  deleteBackup: (backupFile) => ipcRenderer.invoke('delete-backup', backupFile)
 });

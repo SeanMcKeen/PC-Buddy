@@ -77,10 +77,65 @@ function getScriptPath(scriptName) {
     : path.join(__dirname, '..', 'assets', scriptName);
 }
 
-// System repair handler
+// Enhanced security helper functions
+function sanitizeForShell(input) {
+  if (typeof input !== 'string') {
+    throw new Error('Input must be a string');
+  }
+  
+  // Remove or escape dangerous characters for shell commands (Windows path safe)
+  return input
+    .replace(/[;&|`$(){}[\]<>]/g, '') // Remove shell metacharacters (preserve backslash and colon for Windows paths)
+    .replace(/\.\./g, '') // Remove directory traversal attempts
+    .replace(/^\s+|\s+$/g, '') // Trim whitespace
+    .substring(0, 500); // Limit length to prevent buffer overflow attempts
+}
+
+function validatePath(path) {
+  if (typeof path !== 'string' || path.length === 0 || path.length > 260) {
+    throw new Error('Invalid path format');
+  }
+  
+  // Block only truly dangerous path patterns (Windows-compatible)
+  const dangerousPatterns = [
+    /\.\./,                    // Directory traversal
+    /[<>"|?*]/,               // Invalid Windows path chars (excluding colon for drive letters)
+    /:.*:/,                   // Multiple colons (invalid)
+    /^[^A-Za-z].*:/,         // Colon not after drive letter
+    /^\\\\.*\\admin\$/i,     // Admin shares
+    /^\\\\.*\\c\$/i,         // Hidden C$ shares
+    /script:/i,               // Script protocols
+    /javascript:/i,           // JavaScript protocol
+    /vbscript:/i,            // VBScript protocol
+    /data:/i                  // Data protocol
+  ];
+  
+  // Check for reserved Windows names in path components
+  const pathComponents = path.split(/[\\\/]/);
+  const reservedNames = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
+  
+  for (const component of pathComponents) {
+    if (component && reservedNames.test(component.split('.')[0])) {
+      throw new Error('Path contains reserved Windows name');
+    }
+  }
+  
+  for (const pattern of dangerousPatterns) {
+    if (pattern.test(path)) {
+      throw new Error('Path contains potentially dangerous patterns');
+    }
+  }
+  
+  return path;
+}
+
+// System repair handler with enhanced security
 ipcMain.handle('run-sfc-and-dism', async () => {
   return new Promise((resolve, reject) => {
-    sudo.exec('sfc /scannow', options, (sfcErr, sfcOut, sfcErrOut) => {
+    // Ensure only authorized SFC command is run
+    const sfcCommand = 'sfc /scannow';
+    
+    sudo.exec(sfcCommand, options, (sfcErr, sfcOut, sfcErrOut) => {
       const output = sfcOut + sfcErrOut;
       const needsDism = /unable to fix/i.test(output);
 
@@ -90,7 +145,10 @@ ipcMain.handle('run-sfc-and-dism', async () => {
       }
 
       if (needsDism) {
-        sudo.exec('DISM /Online /Cleanup-Image /RestoreHealth', options, (dismErr) => {
+        // Ensure only authorized DISM command is run
+        const dismCommand = 'DISM /Online /Cleanup-Image /RestoreHealth';
+        
+        sudo.exec(dismCommand, options, (dismErr) => {
           if (dismErr) {
             log('[DISM Error]', dismErr);
             return reject(new Error('SFC found problems but DISM repair failed.'));
@@ -280,17 +338,30 @@ async function getCurrentBackupPath() {
   });
 }
 
-// Backup Management Handlers
+// Backup Management Handlers with Enhanced Security
 ipcMain.handle('create-backup', async () => {
   return new Promise(async (resolve, reject) => {
     try {
       const backupPath = await getCurrentBackupPath();
+      
+      // Validate backup path for security
+      try {
+        validatePath(backupPath);
+      } catch (pathError) {
+        log('[create-backup] Invalid backup path:', pathError.message);
+        return reject(new Error('Invalid backup path specified'));
+      }
+      
       const scriptPath = getScriptPath('createBackup.ps1');
-      const command = `powershell -NoProfile -ExecutionPolicy Bypass -File "${scriptPath}" -BackupLocation "${backupPath}"`;
       
-      log('[create-backup] Running command:', command);
-      log('[create-backup] Using backup path:', backupPath);
+      // Sanitize backup path for PowerShell execution
+      const sanitizedBackupPath = sanitizeForShell(backupPath);
       
+      const command = `powershell -NoProfile -ExecutionPolicy Bypass -File "${scriptPath}" -BackupLocation "${sanitizedBackupPath}"`;
+    
+      log('[create-backup] Running command with sanitized path');
+      log('[create-backup] Using backup path:', sanitizedBackupPath);
+    
       sudo.exec(command, options, (error, stdout, stderr) => {
         if (error) {
           log('[create-backup] Error:', error);
@@ -312,11 +383,24 @@ ipcMain.handle('get-backup-info', async () => {
   return new Promise(async (resolve, reject) => {
     try {
       const backupPath = await getCurrentBackupPath();
+      
+      // Validate backup path for security
+      try {
+        validatePath(backupPath);
+      } catch (pathError) {
+        log('[get-backup-info] Invalid backup path:', pathError.message);
+        return reject(new Error('Invalid backup path specified'));
+      }
+      
       const scriptPath = getScriptPath('getBackupInfo.ps1');
-      const command = `powershell -NoProfile -ExecutionPolicy Bypass -File "${scriptPath}" -BackupLocation "${backupPath}"`;
+      
+      // Sanitize backup path for PowerShell execution  
+      const sanitizedBackupPath = sanitizeForShell(backupPath);
+      
+      const command = `powershell -NoProfile -ExecutionPolicy Bypass -File "${scriptPath}" -BackupLocation "${sanitizedBackupPath}"`;
 
-      log('[get-backup-info] Running command:', command);
-      log('[get-backup-info] Using backup path:', backupPath);
+      log('[get-backup-info] Running command with sanitized path');
+      log('[get-backup-info] Using backup path:', sanitizedBackupPath);
 
       exec(command, (error, stdout, stderr) => {
         if (error) {
@@ -346,7 +430,7 @@ ipcMain.handle('open-backup-location', async () => {
       const backupLocation = await getCurrentBackupPath();
       
       // Create the directory if it doesn't exist
-      const fs = require('fs');
+        const fs = require('fs');
       if (!fs.existsSync(backupLocation)) {
         fs.mkdirSync(backupLocation, { recursive: true });
       }
@@ -432,7 +516,7 @@ ipcMain.handle('get-backup-path', async () => {
         // Pattern 2: Try simpler pattern if first fails
         if (!match) {
           match = stdout.match(/REG_SZ\s+(.+?)(?:\s*$|\r|\n)/m);
-        }
+      }
         
         if (match && match[1] && match[1].trim()) {
           const registryPath = match[1].trim();
@@ -451,15 +535,165 @@ ipcMain.handle('get-backup-path', async () => {
   });
 });
 
-// Run PowerShell command handler
+// Enhanced PowerShell command handler with security restrictions
 ipcMain.handle('run-powershell-command', async (event, command) => {
   return new Promise((resolve, reject) => {
-    exec(`powershell -NoProfile -ExecutionPolicy Bypass -Command "${command}"`, (error, stdout, stderr) => {
+    // Input validation
+    if (typeof command !== 'string' || command.length === 0 || command.length > 1000) {
+      log('[run-powershell-command] Invalid command length');
+      return reject(new Error('Invalid command format'));
+    }
+    
+    // Whitelist of allowed PowerShell commands for this application
+    const allowedCommands = [
+      /^Get-WmiObject.*Win32_/i,
+      /^Get-CimInstance.*Win32_/i,
+      /^Get-ItemProperty.*HKLM/i,
+      /^Get-ItemProperty.*HKCU/i,
+      /^Get-Process$/i,
+      /^Get-Service$/i,
+      /^Get-Volume$/i,
+      /^Get-Disk$/i,
+      /^Get-ComputerInfo$/i,
+      /^Get-PhysicalDisk$/i,
+      /^Get-SystemInfo$/i,
+      /^systeminfo$/i,
+      /^wmic\s+/i,
+      /^Get-ChildItem.*Temp/i,
+      /^\[System\.IO\.DriveInfo\]/i,
+      /^\[Environment\]/i,
+      /^hostname$/i
+    ];
+    
+    // Check if command matches any allowed pattern
+    const isAllowed = allowedCommands.some(pattern => pattern.test(command));
+    
+    if (!isAllowed) {
+      log('[run-powershell-command] Command not in whitelist:', command);
+      return reject(new Error('Command not authorized for execution'));
+    }
+    
+    // Additional security: Remove dangerous patterns even from whitelisted commands
+    const dangerousPatterns = [
+      /[;&|`]/,          // Command chaining
+      /invoke-expression/i,
+      /iex\s/i,
+      /download/i,
+      /start-process/i,
+      /invoke-webrequest/i,
+      /\.\./,            // Directory traversal
+      /system32/i,       // System directory access
+    ];
+    
+    for (const pattern of dangerousPatterns) {
+      if (pattern.test(command)) {
+        log('[run-powershell-command] Dangerous pattern detected:', command);
+        return reject(new Error('Command contains prohibited patterns'));
+      }
+    }
+    
+    // Sanitize the command
+    const sanitizedCommand = sanitizeForShell(command);
+    
+    log('[run-powershell-command] Executing whitelisted command');
+    
+    exec(`powershell -NoProfile -ExecutionPolicy Bypass -Command "${sanitizedCommand}"`, (error, stdout, stderr) => {
       if (error) {
         log('[run-powershell-command] Error:', error);
         return reject(new Error(stderr || error.message));
       }
       resolve(stdout.trim());
     });
+  });
+});
+
+// Open Explorer for file/folder selection (fixed command)
+ipcMain.handle('open-file-explorer', async () => {
+  return new Promise((resolve, reject) => {
+    // Use 'start explorer' instead of just 'explorer.exe'
+    exec('start explorer', (error) => {
+      if (error) {
+        log('[open-file-explorer] Error:', error);
+        return reject(new Error('Failed to open file explorer'));
+      }
+      resolve('File explorer opened');
+    });
+  });
+});
+
+// File/Folder selection dialog for custom shortcuts
+ipcMain.handle('select-file-or-folder', async () => {
+  const { dialog } = require('electron');
+  
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: 'Select File or Folder for Shortcut',
+    properties: ['openFile', 'openDirectory'],
+    buttonLabel: 'Select'
+  });
+  
+  if (!result.canceled && result.filePaths.length > 0) {
+    const selectedPath = result.filePaths[0];
+    log('[select-file-or-folder] User selected path:', selectedPath);
+    return selectedPath;
+  } else {
+    throw new Error('No file or folder selected');
+  }
+});
+
+// Delete backup files handler
+ipcMain.handle('delete-backup', async (event, backupFile) => {
+  return new Promise(async (resolve, reject) => {
+    try {
+      const backupPath = await getCurrentBackupPath();
+      
+      // Validate backup path for security
+      try {
+        validatePath(backupPath);
+      } catch (pathError) {
+        log('[delete-backup] Invalid backup path:', pathError.message);
+        return reject(new Error('Invalid backup path specified'));
+      }
+      
+      // Validate backup file name for security
+      if (!backupFile || typeof backupFile !== 'string' || backupFile.includes('..') || 
+          backupFile.includes('/') || backupFile.includes('\\')) {
+        log('[delete-backup] Invalid backup file name:', backupFile);
+        return reject(new Error('Invalid backup file name'));
+      }
+      
+      const fs = require('fs');
+      const fullBackupPath = path.join(backupPath, backupFile);
+      
+      // Additional security check - ensure file is in the backup directory
+      if (!fullBackupPath.startsWith(backupPath)) {
+        log('[delete-backup] Path traversal attempt blocked:', fullBackupPath);
+        return reject(new Error('Invalid backup file path'));
+      }
+      
+      // Check if file/directory exists
+      if (!fs.existsSync(fullBackupPath)) {
+        log('[delete-backup] Backup file does not exist:', fullBackupPath);
+        return reject(new Error('Backup file does not exist'));
+      }
+      
+      // Check if it's a directory or file and delete accordingly
+      const stats = fs.statSync(fullBackupPath);
+      
+      if (stats.isDirectory()) {
+        // Delete directory recursively
+        fs.rmSync(fullBackupPath, { recursive: true, force: true });
+        log('[delete-backup] Successfully deleted backup directory:', fullBackupPath);
+      } else {
+        // Delete file
+        fs.unlinkSync(fullBackupPath);
+        log('[delete-backup] Successfully deleted backup file:', fullBackupPath);
+      }
+      
+      resolve(`Backup "${backupFile}" deleted successfully`);
+      
+    } catch (error) {
+      log('[delete-backup] Error:', error);
+      reject(new Error(`Failed to delete backup: ${error.message}`));
+    }
   });
 });

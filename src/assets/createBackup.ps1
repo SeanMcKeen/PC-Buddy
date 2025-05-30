@@ -33,45 +33,47 @@ try {
         }
     }
     
-    # Create timestamped backup folder
+    # Create timestamped backup folder (temporary for creating zip)
     $timestamp = Get-Date -Format "yyyy-MM-dd_HH-mm-ss"
-    $backupFolder = Join-Path $BackupLocation "SystemBackup_$timestamp"
+    $tempBackupFolder = Join-Path $env:TEMP "PC-Buddy-Backup-$timestamp"
+    $zipFileName = "SystemBackup_$timestamp.zip"
+    $finalZipPath = Join-Path $BackupLocation $zipFileName
     
     # Create backup directory
     if (-not (Test-Path $BackupLocation)) {
         New-Item -Path $BackupLocation -ItemType Directory -Force | Out-Null
     }
     
-    New-Item -Path $backupFolder -ItemType Directory -Force | Out-Null
+    New-Item -Path $tempBackupFolder -ItemType Directory -Force | Out-Null
     
-    Write-Output "Creating system backup in: $backupFolder"
+    Write-Output "Creating system backup as ZIP file: $finalZipPath"
     
     # Define important directories to backup
     $userProfile = $env:USERPROFILE
     $backupItems = @(
         @{
             Source = Join-Path $userProfile "Desktop"
-            Destination = Join-Path $backupFolder "Desktop"
+            Destination = Join-Path $tempBackupFolder "Desktop"
             Name = "Desktop"
         },
         @{
             Source = Join-Path $userProfile "Documents"
-            Destination = Join-Path $backupFolder "Documents"
+            Destination = Join-Path $tempBackupFolder "Documents"
             Name = "Documents"
         },
         @{
             Source = Join-Path $userProfile "Pictures"
-            Destination = Join-Path $backupFolder "Pictures"
+            Destination = Join-Path $tempBackupFolder "Pictures"
             Name = "Pictures"
         },
         @{
             Source = Join-Path $userProfile "Music"
-            Destination = Join-Path $backupFolder "Music"
+            Destination = Join-Path $tempBackupFolder "Music"
             Name = "Music"
         },
         @{
             Source = Join-Path $userProfile "Videos"
-            Destination = Join-Path $backupFolder "Videos"
+            Destination = Join-Path $tempBackupFolder "Videos"
             Name = "Videos"
         }
     )
@@ -79,7 +81,7 @@ try {
     # Backup summary
     $backupSummary = @{
         StartTime = Get-Date
-        BackupLocation = $backupFolder
+        BackupLocation = $finalZipPath
         Items = @()
         TotalFiles = 0
         TotalSize = 0
@@ -155,8 +157,29 @@ try {
     $backupSummary.EndTime = Get-Date
     $backupSummary.Duration = ($backupSummary.EndTime - $backupSummary.StartTime).TotalMinutes
     
-    $manifestPath = Join-Path $backupFolder "backup_manifest.json"
+    $manifestPath = Join-Path $tempBackupFolder "backup_manifest.json"
     $backupSummary | ConvertTo-Json -Depth 3 | Out-File -FilePath $manifestPath -Encoding UTF8
+    
+    # Create ZIP file from backup folder
+    Write-Output "Creating ZIP archive..."
+    try {
+        # Use built-in .NET compression
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
+        [System.IO.Compression.ZipFile]::CreateFromDirectory($tempBackupFolder, $finalZipPath)
+        
+        # Clean up temporary folder
+        Remove-Item -Path $tempBackupFolder -Recurse -Force -ErrorAction SilentlyContinue
+        
+        # Get final ZIP file size
+        $zipInfo = Get-Item $finalZipPath
+        $zipSizeMB = [math]::Round($zipInfo.Length / 1MB, 2)
+        
+        Write-Output "ZIP file created successfully: $zipSizeMB MB"
+        
+    } catch {
+        $backupSummary.Errors += "Failed to create ZIP file: $($_.Exception.Message)"
+        Write-Output "Warning: Failed to create ZIP file, backup remains in folder: $tempBackupFolder"
+    }
     
     # Update registry with backup information
     try {
@@ -185,7 +208,7 @@ try {
     $sizeInMB = [math]::Round($backupSummary.TotalSize / 1MB, 2)
     
     if ($backupSummary.Errors.Count -eq 0) {
-        Write-Output "Backup completed successfully! Backed up $($backupSummary.TotalFiles) files ($sizeInMB MB) from $successCount/$totalItems locations to: $backupFolder"
+        Write-Output "Backup completed successfully! Backed up $($backupSummary.TotalFiles) files ($sizeInMB MB) from $successCount/$totalItems locations to: $finalZipPath"
     } else {
         Write-Output "Backup completed with warnings. Backed up $($backupSummary.TotalFiles) files ($sizeInMB MB) from $successCount/$totalItems locations. Check manifest for details."
     }
