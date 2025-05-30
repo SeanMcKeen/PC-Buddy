@@ -7,7 +7,6 @@ const { execFile } = require('child_process');
 
 contextBridge.exposeInMainWorld('electronAPI', {
   runSystemRepair: () => ipcRenderer.invoke('run-sfc-and-dism'),
-  runDiskCleanup: () => ipcRenderer.invoke('run-disk-cleanup'),
   onUpdateAvailable: (cb) => ipcRenderer.on('update-available', (_, version) => cb(version)),
   onDownloadProgress: (cb) => ipcRenderer.on('update-download-progress', (_, progress) => cb(progress)),
   onUpdateDownloaded: (cb) => ipcRenderer.on('update-downloaded', () => cb()),
@@ -45,6 +44,10 @@ contextBridge.exposeInMainWorld('folderAPI', {
   }
 });
 
+contextBridge.exposeInMainWorld('cleanupAPI', {
+  getDiskUsage: () => ipcRenderer.invoke('get-disk-usage'),
+  cleanDrive: (driveLetter) => ipcRenderer.invoke('clean-drive', driveLetter)
+});
 
 function formatUptime(seconds) {
   const hours = Math.floor(seconds / 3600);

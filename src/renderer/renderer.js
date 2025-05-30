@@ -3,7 +3,7 @@ console.log('systemInfoAPI:', window.systemInfoAPI);
 
 // Tool Action Handlers
 const toolActions = {
-  diskCleanup: () => window.electronAPI.runDiskCleanup(),
+  diskCleanup: () => promptDriveSelection(),
   systemRepair: () => window.electronAPI.runSystemRepair()
 };
 
@@ -278,8 +278,49 @@ window.addEventListener('DOMContentLoaded', async () => {
   taskBtn?.addEventListener('click', () => {
     window.startupAPI.openTaskManager();
   });
+
+  
 });
 
+document.getElementById('chooseDriveBtn')?.addEventListener('click', async () => {
+  const result = await promptDriveSelection();
+  if (result?.startCleanup === true) {
+    // Only show spinner after confirmation
+    const card = document.getElementById('diskCleanupCard');
+    const loadingEl = card.querySelector('.loadingMessage');
+    const resultEl = card.querySelector('.toolResult');
+    const statusText = card.querySelector('.statusText');
+
+    resultEl.classList.remove('success', 'error');
+    resultEl.textContent = '';
+    loadingEl.style.display = 'block';
+
+    let dotCount = 0;
+    statusText.textContent = 'Cleaning Disk';
+
+    const statusInterval = setInterval(() => {
+      dotCount = (dotCount + 1) % 4;
+      statusText.textContent = 'Cleaning Disk' + '.'.repeat(dotCount);
+    }, 500);
+
+    try {
+      const cleanupResult = await window.cleanupAPI.cleanDrive(result.drive);
+      resultEl.classList.add('success');
+      resultEl.textContent = cleanupResult || `Cleanup started on drive ${result.drive}`;
+    } catch (err) {
+      resultEl.classList.add('error');
+      resultEl.textContent = 'Error: ' + err.message;
+    } finally {
+      clearInterval(statusInterval);
+      loadingEl.style.display = 'none';
+      statusText.textContent = '';
+      setTimeout(() => {
+        resultEl.textContent = '';
+        resultEl.classList.remove('success', 'error');
+      }, 5000);
+    }
+  }
+});
 
 function extractCommandPath(command) {
   if (!command) return 'Unknown';
@@ -375,3 +416,115 @@ function showModal({ type = 'warning', title, message, confirmText = 'OK', showC
     window.addEventListener('keydown', handleEscape);
   });
 }
+
+async function promptDriveSelection() {
+  const disks = await window.cleanupAPI.getDiskUsage();
+  if (!disks || !disks.length) {
+    await showModal({
+      type: 'error',
+      title: 'No Drives Found',
+      message: 'We couldn’t detect any drives to clean.'
+    });
+    return;
+  }
+
+  const systemDrive = disks.find(d => d.IsSystem) || disks[0];
+  let selectedDrive = systemDrive;
+
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+
+    const content = document.createElement('div');
+    content.className = 'modal-content';
+
+    const header = document.createElement('div');
+    header.className = 'modal-header warning';
+
+    const icon = document.createElement('span');
+    icon.className = 'modal-warning-icon';
+    icon.textContent = '⚠️';
+
+    const titleEl = document.createElement('h3');
+    titleEl.className = 'modal-title';
+    titleEl.textContent = `Clean ${selectedDrive.Name}: Drive`;
+
+    header.appendChild(icon);
+    header.appendChild(titleEl);
+    content.appendChild(header);
+
+    const body = document.createElement('div');
+    body.className = 'modal-body';
+    body.innerHTML = `This will clean temporary files and system junk from ${selectedDrive.Name}:.`;
+
+    const actions = document.createElement('div');
+    actions.className = 'modal-actions';
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'modal-button cancel';
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.onclick = () => {
+      document.body.removeChild(overlay);
+      resolve({ startCleanup: false });
+    };
+
+    const confirmBtn = document.createElement('button');
+    confirmBtn.className = 'modal-button warning';
+    confirmBtn.textContent = 'Yes, Clean It';
+    confirmBtn.onclick = () => {
+      document.body.removeChild(overlay);
+      resolve({ startCleanup: true, drive: selectedDrive.Name });
+    };
+
+    const moreDrivesBtn = document.createElement('button');
+    moreDrivesBtn.className = 'modal-button secondary';
+    moreDrivesBtn.textContent = 'Show More Drives';
+    moreDrivesBtn.style.marginLeft = 'auto';
+
+    moreDrivesBtn.onclick = () => {
+      body.innerHTML = 'Select another drive to clean:';
+      actions.innerHTML = ''; // Clear previous actions
+
+      disks.forEach((d) => {
+        const driveBtn = document.createElement('button');
+        driveBtn.className = 'modal-button drive-select';
+        driveBtn.textContent = `${d.Name}: ${d.PercentUsed}% used (${d.UsedGB} GB of ${d.TotalGB} GB)`;
+
+        driveBtn.onclick = async () => {
+          const confirm = await showModal({
+            type: 'warning',
+            title: `Clean ${d.Name}: Drive`,
+            message: `Are you sure you want to clean temp files from ${d.Name}:?`,
+            confirmText: 'Yes, Clean It'
+          });
+
+          if (confirm) {
+            document.body.removeChild(overlay);
+            resolve({ startCleanup: true, drive: d.Name });
+          }
+        };
+
+        body.appendChild(document.createElement('br'));
+        body.appendChild(driveBtn);
+      });
+
+      const cancelDriveBtn = document.createElement('button');
+      cancelDriveBtn.className = 'modal-button cancel';
+      cancelDriveBtn.textContent = 'Cancel';
+      cancelDriveBtn.onclick = () => {
+        document.body.removeChild(overlay);
+        resolve({ startCleanup: false });
+      };
+
+      actions.appendChild(cancelDriveBtn);
+    };
+
+    actions.append(cancelBtn, confirmBtn, moreDrivesBtn);
+
+    content.appendChild(body);
+    content.appendChild(actions);
+    overlay.appendChild(content);
+    document.body.appendChild(overlay);
+  });
+}
+

@@ -71,23 +71,23 @@
           </div>
         </div>
 
-        <!-- Disk Cleanup Card -->
+        <!-- Disk Usage and Cleanup Card -->
         <div class="tool-card" id="diskCleanupCard">
-          <h3>Disk Cleanup Utility</h3>
-          <p class="description">This will cleanup any temporary files on your main disk. (C:)</p>
+          <h3>Disk Usage & Cleanup</h3>
+          <p class="description">See your disk usage and choose a drive to clean temporary files.</p>
 
-          <button class="tool-btn" data-action="diskCleanup">Start Cleanup</button>
+          <div id="diskList"></div>
+
+          <button id="chooseDriveBtn">Choose Drive to Clean</button>
 
           <div class="loadingMessage" style="display: none;">
             <div class="spinner"></div>
-            <p class="statusText">Running...</p>
+            <p class="statusText">Cleaning...</p>
             <p class="estimatedTime">Estimated time: ~1 minute</p>
           </div>
 
           <div class="toolResult"></div>
         </div>
-
-
       </div>
 
       <div id="folders" class="section">

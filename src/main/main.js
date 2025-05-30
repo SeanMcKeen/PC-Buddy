@@ -23,8 +23,8 @@ let mainWindow;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 800,
+    width: 1920,
+    height: 1080,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -186,5 +186,52 @@ ipcMain.handle('toggle-startup-program', async (event, programName, enable) => {
 ipcMain.on('open-task-manager', () => {
   exec('start taskmgr.exe /0 /startup', (error) => {
     if (error) log('Failed to open Task Manager:', error);
+  });
+});
+
+ipcMain.handle('clean-drive', async (event, driveLetter = 'C') => {
+  return new Promise((resolve) => {
+    const letter = driveLetter.toUpperCase().replace(':', '');
+    const scriptPath = app.isPackaged
+      ? path.join(process.resourcesPath, 'assets', 'deepClean.ps1')
+      : path.join(__dirname, '..', 'assets', 'deepClean.ps1'); 
+
+    const command = `powershell -ExecutionPolicy Bypass -NoProfile -File "${scriptPath}" -DriveLetter ${letter}`;
+
+    exec(command, { maxBuffer: 1024 * 1024 }, (error, stdout, stderr) => {
+      if (error) {
+        console.error('[Deep Clean Error]', error);
+        return resolve(`Cleanup failed for ${letter}:.`);
+      }
+      console.log('[Deep Clean Output]', stdout);
+      resolve(`Cleanup completed for ${letter}:.`);
+    });
+  });
+});
+
+
+ipcMain.handle('get-disk-usage', async () => {
+  return new Promise((resolve, reject) => {
+    const scriptPath = app.isPackaged
+      ? path.join(process.resourcesPath, 'assets', 'getDiskUsage.ps1')
+      : path.join(__dirname, '..', 'assets', 'getDiskUsage.ps1');
+
+    const command = `powershell -NoProfile -ExecutionPolicy Bypass -File "${scriptPath}"`;
+
+    exec(command, (error, stdout, stderr) => {
+      if (error) {
+        console.error('[get-disk-usage] PowerShell exec error:', error);
+        return reject(error);
+      }
+
+      try {
+        const data = JSON.parse(stdout);
+        resolve(data);
+      } catch (parseError) {
+        console.error('[get-disk-usage] JSON parse error:', parseError);
+        console.error('[stdout]', stdout);
+        reject(parseError);
+      }
+    });
   });
 });
