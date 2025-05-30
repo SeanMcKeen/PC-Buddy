@@ -168,20 +168,24 @@ body {
   top: 20px;
 }
 
+/* True Pinterest-style masonry layout */
 .section.active {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, 600px);
-  gap: 12px;
-  opacity: 1;
   position: relative;
   width: 100%;
   margin: 0;
-  justify-content: center;
-  align-items: start;
-  grid-auto-flow: row;
+  padding: 20px;
+  box-sizing: border-box;
+  opacity: 1;
+  min-height: 500px; /* Ensure space for positioning */
 }
 
-/* Card styles */
+/* Masonry container when JavaScript masonry is active */
+.section.active.js-masonry {
+  display: block;
+  position: relative;
+}
+
+/* Card styles - updated for JavaScript masonry positioning */
 .tool-card {
   background: #ffffff;
   border-radius: 12px;
@@ -193,9 +197,37 @@ body {
   display: flex;
   flex-direction: column;
   height: fit-content;
-  width: 600px;
-  min-width: 600px;
-  max-width: 600px;
+  width: 350px; /* Fixed width for consistent masonry grid */
+  transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.3s ease;
+  position: absolute; /* Allow JavaScript positioning */
+  top: 0;
+  left: 0;
+  opacity: 0; /* Initially hidden until positioned */
+}
+
+/* Fallback for non-masonry browsers */
+.section.active:not(.js-masonry) {
+  display: block;
+  columns: auto;
+  column-width: 350px;
+  column-gap: 20px;
+  column-fill: balance;
+}
+
+.section.active:not(.js-masonry) .tool-card {
+  position: static;
+  break-inside: avoid;
+  page-break-inside: avoid;
+  margin-bottom: 20px;
+  display: inline-block;
+  width: 100%;
+}
+
+/* Add hover effect for better UX */
+.tool-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+  z-index: 1;
 }
 
 .tool-card h3 {
@@ -216,44 +248,55 @@ body {
   word-wrap: break-word;
 }
 
+/* Responsive masonry adjustments */
 @media (max-width: 768px) {
-  .section.active {
-    grid-template-columns: 1fr;
-    justify-content: stretch;
+  .tool-card {
+    width: calc(100vw - 40px); /* Full width minus padding */
+    max-width: 400px;
   }
   
-  .tool-card {
-    width: 100%;
-    min-width: 0;
-    max-width: 100%;
+  .section.active {
+    padding: 10px;
+  }
+  
+  .section.active:not(.js-masonry) {
+    column-width: 100%;
+    columns: 1;
   }
   
   #sidebar {
     width: 260px;
     min-width: 260px;
   }
-  
-  .section.active {
-    width: 100%;
-    padding: 0;
-  }
 }
 
 @media (min-width: 769px) and (max-width: 1200px) {
-  .section.active {
-    grid-template-columns: repeat(2, 1fr);
+  .tool-card {
+    width: 320px;
+  }
+  
+  .section.active:not(.js-masonry) {
+    column-width: 320px;
   }
 }
 
 @media (min-width: 1201px) and (max-width: 1600px) {
-  .section.active {
-    grid-template-columns: repeat(3, 1fr);
+  .tool-card {
+    width: 350px;
+  }
+  
+  .section.active:not(.js-masonry) {
+    column-width: 350px;
   }
 }
 
 @media (min-width: 1601px) {
-  .section.active {
-    grid-template-columns: repeat(4, 1fr);
+  .tool-card {
+    width: 380px;
+  }
+  
+  .section.active:not(.js-masonry) {
+    column-width: 380px;
   }
 }
 
@@ -345,12 +388,7 @@ body {
 }
 
 #systemHealth {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 24px;
-  align-items: flex-start;
-  justify-content: space-between; /* spreads them out */
-  padding: 0; /* remove if you don't need padding here */
+  /* Remove custom layout - inherit masonry from .section.active */
 }
 
 .startup-controls-horizontal {

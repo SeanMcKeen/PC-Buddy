@@ -74,6 +74,11 @@ window.addEventListener('DOMContentLoaded', async () => {
     sections.forEach(section => {
       section.classList.toggle('active', section.id === sectionId);
     });
+    
+    // Refresh masonry layout after section switch
+    setTimeout(() => {
+      initMasonryLayout();
+    }, 100);
   }
 
   sidebarItems.forEach(item => {
@@ -279,7 +284,10 @@ window.addEventListener('DOMContentLoaded', async () => {
     window.startupAPI.openTaskManager();
   });
 
-  
+  // Initialize masonry layout after all content is loaded
+  setTimeout(() => {
+    initMasonryLayout();
+  }, 200);
 });
 
 document.getElementById('chooseDriveBtn')?.addEventListener('click', async () => {
@@ -423,7 +431,7 @@ async function promptDriveSelection() {
     await showModal({
       type: 'error',
       title: 'No Drives Found',
-      message: 'We couldn’t detect any drives to clean.'
+      message: 'We could not detect any drives to clean.'
     });
     return;
   }
@@ -527,4 +535,217 @@ async function promptDriveSelection() {
     document.body.appendChild(overlay);
   });
 }
+
+// True Pinterest-style masonry layout
+class MasonryLayout {
+  constructor(container, options = {}) {
+    this.container = container;
+    this.gap = options.gap || 20;
+    this.cardWidth = this.getCardWidth();
+    this.columns = [];
+    this.cards = [];
+    this.resizeObserver = null;
+    
+    this.init();
+  }
+  
+  getCardWidth() {
+    const containerWidth = this.container.offsetWidth - 40; // Account for padding
+    const minCardWidth = window.innerWidth <= 768 ? 300 : 
+                        window.innerWidth <= 1200 ? 320 :
+                        window.innerWidth <= 1600 ? 350 : 380;
+    
+    // Calculate how many columns we can fit
+    const possibleColumns = Math.floor((containerWidth + this.gap) / (minCardWidth + this.gap));
+    const actualColumns = Math.max(1, possibleColumns);
+    
+    // Calculate actual card width to fill the space
+    return Math.floor((containerWidth - (this.gap * (actualColumns - 1))) / actualColumns);
+  }
+  
+  init() {
+    this.container.classList.add('js-masonry');
+    this.cards = Array.from(this.container.querySelectorAll('.tool-card'));
+    
+    // Set card widths and hide initially
+    this.cardWidth = this.getCardWidth();
+    this.cards.forEach(card => {
+      card.style.width = `${this.cardWidth}px`;
+      card.style.opacity = '0';
+      card.style.transform = 'translate3d(0, 0, 0)';
+    });
+    
+    this.calculateLayout();
+    this.setupResizeObserver();
+    
+    // Handle window resize
+    window.addEventListener('resize', () => {
+      clearTimeout(this.resizeTimeout);
+      this.resizeTimeout = setTimeout(() => {
+        this.handleResize();
+      }, 150);
+    });
+  }
+  
+  calculateLayout() {
+    if (this.cards.length === 0) return;
+    
+    const containerWidth = this.container.offsetWidth - 40;
+    const columnsCount = Math.floor((containerWidth + this.gap) / (this.cardWidth + this.gap));
+    
+    // Initialize column heights
+    this.columns = Array(Math.max(1, columnsCount)).fill(0);
+    
+    // Batch all positioning to avoid visual glitches
+    this.batchPositionCards();
+  }
+  
+  batchPositionCards() {
+    // First, measure all card heights without positioning
+    const cardHeights = this.cards.map(card => {
+      // Temporarily position off-screen to measure
+      card.style.transform = 'translate3d(-9999px, 0, 0)';
+      card.style.opacity = '1';
+      const height = card.offsetHeight;
+      card.style.opacity = '0';
+      return height;
+    });
+    
+    // Advanced gap-filling algorithm
+    const positions = this.calculateOptimalPositions(cardHeights);
+    
+    // Apply all positions simultaneously
+    requestAnimationFrame(() => {
+      this.cards.forEach((card, index) => {
+        const { x, y } = positions[index];
+        card.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+        card.style.opacity = '1';
+      });
+      
+      // Set final container height
+      const maxHeight = Math.max(...this.columns);
+      this.container.style.height = `${maxHeight + 40}px`;
+    });
+  }
+  
+  calculateOptimalPositions(cardHeights) {
+    const containerWidth = this.container.offsetWidth - 40;
+    const columnsCount = Math.floor((containerWidth + this.gap) / (this.cardWidth + this.gap));
+    const positions = [];
+    
+    // Reset columns
+    this.columns = Array(Math.max(1, columnsCount)).fill(0);
+    
+    // Position cards in order, finding the shortest column each time
+    cardHeights.forEach((height, index) => {
+      const shortestColumnIndex = this.columns.indexOf(Math.min(...this.columns));
+      
+      const x = shortestColumnIndex * (this.cardWidth + this.gap);
+      const y = this.columns[shortestColumnIndex];
+      
+      positions[index] = { x, y };
+      this.columns[shortestColumnIndex] += height + this.gap;
+    });
+    
+    return positions;
+  }
+  
+  findBestPosition(cardHeight, columnsCount) {
+    // Simplified - just use shortest column
+    const shortestColumnIndex = this.columns.indexOf(Math.min(...this.columns));
+    const x = shortestColumnIndex * (this.cardWidth + this.gap);
+    const y = this.columns[shortestColumnIndex];
+    return { x, y };
+  }
+  
+  handleResize() {
+    // Hide cards during resize to prevent glitches
+    this.cards.forEach(card => {
+      card.style.opacity = '0';
+    });
+    
+    const newCardWidth = this.getCardWidth();
+    if (newCardWidth !== this.cardWidth) {
+      this.cardWidth = newCardWidth;
+      this.cards.forEach(card => {
+        card.style.width = `${this.cardWidth}px`;
+      });
+    }
+    
+    // Debounce the layout calculation
+    clearTimeout(this.layoutTimeout);
+    this.layoutTimeout = setTimeout(() => {
+      this.calculateLayout();
+    }, 100);
+  }
+  
+  setupResizeObserver() {
+    if (this.resizeObserver) {
+      this.resizeObserver.disconnect();
+    }
+    
+    this.resizeObserver = new ResizeObserver(() => {
+      clearTimeout(this.layoutTimeout);
+      this.layoutTimeout = setTimeout(() => {
+        this.calculateLayout();
+      }, 100);
+    });
+    
+    this.cards.forEach(card => {
+      this.resizeObserver.observe(card);
+    });
+  }
+  
+  refresh() {
+    this.cards = Array.from(this.container.querySelectorAll('.tool-card'));
+    this.cards.forEach(card => {
+      card.style.width = `${this.cardWidth}px`;
+    });
+    this.setupResizeObserver();
+    setTimeout(() => {
+      this.calculateLayout();
+    }, 50);
+  }
+  
+  destroy() {
+    if (this.resizeObserver) {
+      this.resizeObserver.disconnect();
+    }
+    this.container.classList.remove('js-masonry');
+    this.cards.forEach(card => {
+      card.style.transform = '';
+      card.style.width = '';
+      card.style.opacity = '';
+    });
+  }
+}
+
+// Global masonry instances
+let masonryInstances = new Map();
+
+function initMasonryLayout() {
+  const sections = document.querySelectorAll('.section.active');
+  
+  sections.forEach(section => {
+    const cards = section.querySelectorAll('.tool-card');
+    if (cards.length === 0) return;
+    
+    // Destroy existing instance if it exists
+    if (masonryInstances.has(section)) {
+      masonryInstances.get(section).destroy();
+    }
+    
+    // Create new masonry instance
+    const masonry = new MasonryLayout(section, { gap: 20 });
+    masonryInstances.set(section, masonry);
+  });
+}
+
+function refreshMasonryLayout() {
+  masonryInstances.forEach(masonry => {
+    masonry.refresh();
+  });
+}
+
+document.addEventListener('DOMContentLoaded', initMasonryLayout);
 
