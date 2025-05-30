@@ -4,12 +4,12 @@
 
 **🚀 A Modern Windows System Optimization & Management Tool**
 
-[![Version](https://img.shields.io/badge/version-0.2.0-blue.svg)](https://github.com/SeanMcKeen/pc-buddy/releases)
+[![Version](https://img.shields.io/badge/version-0.2.1-blue.svg)](https://github.com/SeanMcKeen/pc-buddy/releases)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows-lightgrey.svg)](https://www.microsoft.com/windows)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D16.0.0-brightgreen.svg)](https://nodejs.org/)
 
-[Features](#-features) • [Installation](#-installation) • [Usage](#-usage) • [Tech Stack](#-tech-stack)
+[Features](#-features) • [Installation](#-installation) • [Tech Stack](#-tech-stack) • [Version History](#-version-history)
 
 </div>
 
@@ -21,7 +21,8 @@ PC Buddy is a **comprehensive Windows system optimization tool** built with Elec
 
 **🎯 Key Benefits:**
 - **One-Click System Repairs** - Automated SFC and DISM operations
-- **Smart Startup Management** - Safely optimize boot performance with color-coded safety ratings
+- **Smart Backup Management** - Registry-integrated backup path selection with recursive protection
+- **Intelligent Startup Management** - Safely optimize boot performance with color-coded safety ratings
 - **Visual Disk Monitoring** - Real-time space usage with progress bars and cleanup
 - **Quick Access Hub** - Essential Windows settings at your fingertips
 - **Custom Shortcuts** - Personalized shortcuts with emoji icons (200+ emojis across 8 categories)
@@ -33,12 +34,20 @@ PC Buddy is a **comprehensive Windows system optimization tool** built with Elec
 - **System Dashboard**: Real-time OS info, CPU, RAM, uptime, and computer details
 - **Progress Tracking**: Visual status updates with estimated completion times
 
+### 💾 Smart Backup Management
+- **Registry-Integrated Settings**: Backup location stored in Windows registry for persistence
+- **Custom Path Selection**: Browse and select any folder for backup storage
+- **Recursive Protection**: Automatically excludes backup folders to prevent infinite backup loops
+- **Backup Information Display**: Shows last backup date and current backup location
+- **One-Click Folder Access**: Opens backup location directly in File Explorer
+
 ### 🚀 Startup Optimization  
 - **Safety-First Design**: Color-coded ratings (🟢 Safe, 🟡 Caution, 🔴 Danger)
 - **Modern Toggle Switches**: Sleek controls with confirmation dialogs for critical items
 - **Task Manager Integration**: Quick access for advanced users
+- **Real Executable Detection**: Smart parsing of complex startup commands
 
-### 💾 Visual Disk Management
+### 💽 Visual Disk Management
 - **Real-Time Progress Bars**: Color-coded usage visualization (Green/Orange/Red)
 - **Individual Drive Cards**: Clean any drive with dedicated buttons
 - **Smart Recommendations**: System drive highlighted with special badges
@@ -56,10 +65,19 @@ PC Buddy is a **comprehensive Windows system optimization tool** built with Elec
 - **Full CRUD**: Create, edit, delete with hover actions
 
 ### 🎨 Modern Interface
-- **Pinterest-Style Layout**: Responsive masonry grid with hardware acceleration
-- **Smooth Animations**: 60fps transitions with loading screens
+- **Enhanced Loading Experience**: 5-second minimum loading with descriptive progress messages
+- **Pinterest-Style Layout**: Responsive masonry grid with hardware acceleration and wider cards
+- **Smooth Animations**: 60fps transitions with component-based loading tracking
 - **Auto-Update Notifications**: Beautiful top-right cards with progress tracking
 - **Professional Design**: Dark sidebar with collapsible navigation
+- **Responsive Design**: Optimized for different screen sizes with mobile-friendly layouts
+
+### ⚙️ Advanced Settings
+- **Theme Support**: Light and Dark mode with persistent storage
+- **Auto-Refresh**: Configurable automatic system information updates
+- **Default Page Selection**: Choose which section opens on startup
+- **Registry-Based Storage**: All settings persist through Windows registry integration
+- **Reset Functionality**: One-click reset to factory defaults
 
 ## 🚀 Installation
 
@@ -90,55 +108,16 @@ npm run build
 npm run dist
 ```
 
-## 📖 Usage
-
-### System Repair
-1. Navigate to **System Health** tab
-2. Click **Start Scan** for automated SFC/DISM repair
-3. Monitor real-time progress with status updates
-
-### Startup Management
-1. View startup programs with safety badges
-2. Use toggle switches to enable/disable programs
-3. Confirm dangerous operations when prompted
-
-### Disk Cleanup
-1. View all drives with visual usage bars
-2. Click **Clean Drive** on desired drive
-3. Confirm cleanup operation
-
-### Custom Shortcuts
-1. Go to **Shortcuts** tab → **Custom Shortcuts**
-2. Click **Add Custom Shortcut**
-3. Choose emoji icon and enter name/path
-4. Save and use immediately
-
 ## 🛠️ Tech Stack
 
 - **[Electron 22+](https://electronjs.org/)** - Cross-platform desktop framework
 - **[Node.js 16+](https://nodejs.org/)** - JavaScript runtime
 - **[PowerShell 5.1+](https://docs.microsoft.com/powershell/)** - Windows automation
-- **Vanilla JavaScript** - Modern ES6+ features
-- **CSS3** - Hardware-accelerated animations and responsive design
+- **Windows Registry API** - Persistent settings storage
+- **Vanilla JavaScript** - Modern ES6+ features with hardware-accelerated rendering
+- **CSS3** - Advanced animations, transitions, and responsive design
 - **electron-updater** - Automatic application updates
 - **sudo-prompt** - Elevated permission management
-
-## 🔧 Configuration
-
-### PowerShell Execution Policy
-```powershell
-# Enable script execution (run as administrator)
-Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
-```
-
-### Auto-updater Setup
-```javascript
-autoUpdater.setFeedURL({
-  provider: 'github',
-  owner: 'SeanMcKeen',
-  repo: 'PC-Buddy'
-});
-```
 
 ## 🤝 Contributing
 
@@ -168,11 +147,42 @@ autoUpdater.setFeedURL({
 
 ❌ Startup changes not applying
 ✅ Solution: Restart Windows Explorer
+
+❌ Backup path not saving
+✅ Solution: Ensure registry write permissions
 ```
 
 ## 📝 Version History
 
-### 0.2.0 (Current)
+### 0.2.1 (Current)
+- 🔄 **Major Backup System Overhaul**
+  - Registry-integrated backup path selection and storage
+  - Recursive backup prevention (excludes backup folders automatically)
+  - Browse button for custom backup location selection
+  - Real-time backup location display in settings
+  - Improved error handling and fallback mechanisms
+
+- 🎨 **Enhanced User Interface**
+  - Extended loading screen with 5-second minimum duration
+  - Component-based loading tracking system with descriptive messages
+  - Wider cards by default (50px increase across all breakpoints)
+  - Improved backup path control styling with better button sizing
+  - Enhanced responsive design for mobile screens
+
+- 🛠️ **Registry Integration & Settings**
+  - Consistent Windows registry read/write operations
+  - Registry-based backup path persistence
+  - Enhanced settings reset functionality
+  - Improved registry error handling and debugging
+
+- 🔧 **Technical Improvements**
+  - Simplified registry operations using Windows `reg` commands
+  - Enhanced PowerShell script parameter passing
+  - Improved backup script integration with `-BackupLocation` parameter
+  - Better registry value parsing with multiple fallback patterns
+  - Comprehensive logging and debugging enhancements
+
+### 0.2.0
 - ✨ Modern disk cleanup with visual progress bars
 - 🎨 Refactored drive selection (removed clunky modal)
 - 🚀 Enhanced startup management with safety ratings

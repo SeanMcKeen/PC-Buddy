@@ -34,7 +34,7 @@ function Get-SafetyRating {
         return 'safe'
     }
 
-function Normalize-ExeName {
+function Format-ExeName {
     param ([string]$command)
     if ($command) {
         $exe = $command -replace '"', '' -split '\s+' | Where-Object { $_ -like '*.exe' } | Select-Object -First 1
@@ -87,7 +87,7 @@ function Get-StartupPrograms {
 
             $name = $prop.Name
             $command = $prop.Value.Trim('"')
-            $exeName = Normalize-ExeName $command
+            $exeName = Format-ExeName $command
 
             $items += [PSCustomObject]@{
                 Name        = $name
@@ -112,7 +112,7 @@ function Get-StartupPrograms {
         if (Test-Path $folder) {
             Get-ChildItem -Path $folder -Filter *.lnk | ForEach-Object {
                 $target = Resolve-ShortcutTarget $_.FullName
-                $exeName = Normalize-ExeName $target
+                $exeName = Format-ExeName $target
                 $items += [PSCustomObject]@{
                     Name        = $_.BaseName
                     RegistryName= $_.Name
@@ -131,7 +131,7 @@ function Get-StartupPrograms {
     $seen = @{}
     $deduped = @()
     foreach ($item in $items) {
-        $key = "$($item.RegistryName.ToLowerInvariant())|$(Normalize-ExeName $item.Command)"
+        $key = "$($item.RegistryName.ToLowerInvariant())|$(Format-ExeName $item.Command)"
         if (-not $seen.ContainsKey($key)) {
             $seen[$key] = $true
             $deduped += $item

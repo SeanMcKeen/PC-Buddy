@@ -540,10 +540,6 @@ body {
   color: #333333;
 }
 
-#systemHealth {
-  /* Remove custom layout - inherit masonry from .section.active */
-}
-
 .startup-controls-horizontal {
   display: flex;
   align-items: center;
