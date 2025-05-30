@@ -98,28 +98,59 @@ window.addEventListener('DOMContentLoaded', async () => {
   // -------------------------
   // Update Notification Banner
   // -------------------------
-  const banner = document.getElementById('update-banner');
+  const notification = document.getElementById('update-notification');
+  const updateCard = notification?.querySelector('.update-card');
   const updateText = document.getElementById('update-text');
   const installBtn = document.getElementById('install-btn');
+  const dismissBtn = document.getElementById('dismiss-btn');
+  const updateProgress = document.getElementById('update-progress');
+  const progressFill = document.getElementById('progress-fill');
+  const progressText = document.getElementById('progress-text');
+
+  // Dismiss functionality
+  dismissBtn?.addEventListener('click', () => {
+    notification.style.display = 'none';
+  });
 
   window.electronAPI.onUpdateAvailable((version) => {
-    updateText.textContent = `A new version (${version}) is available.`;
-    banner.style.display = 'block';
+    updateText.textContent = `Version ${version} is ready to download.`;
+    updateCard?.classList.remove('downloading', 'ready', 'installing');
+    updateProgress.style.display = 'none';
+    installBtn.disabled = true;
+    installBtn.innerHTML = '<span class="button-icon">⬇️</span>Download';
+    notification.style.display = 'block';
   });
 
   window.electronAPI.onDownloadProgress((progress) => {
-    updateText.textContent = `Downloading update: ${Math.round(progress.percent)}%`;
+    updateCard?.classList.add('downloading');
+    updateCard?.classList.remove('ready', 'installing');
+    updateText.textContent = 'Downloading update...';
+    updateProgress.style.display = 'block';
+    progressFill.style.width = `${progress.percent}%`;
+    progressText.textContent = `${Math.round(progress.percent)}%`;
+    installBtn.disabled = true;
+    installBtn.innerHTML = '<span class="button-icon">⬇️</span>Downloading';
   });
 
   window.electronAPI.onUpdateDownloaded(() => {
-    updateText.textContent = 'Update downloaded. Click to install.';
+    updateCard?.classList.add('ready');
+    updateCard?.classList.remove('downloading', 'installing');
+    updateText.textContent = 'Update downloaded successfully!';
+    updateProgress.style.display = 'none';
     installBtn.disabled = false;
+    installBtn.innerHTML = '<span class="button-icon">📥</span>Install Now';
   });
 
-  installBtn.onclick = () => {
-    updateText.textContent = 'Installing update...';
+  installBtn?.addEventListener('click', () => {
+    updateCard?.classList.add('installing');
+    updateCard?.classList.remove('downloading', 'ready');
+    updateText.textContent = 'Installing update and restarting...';
+    updateProgress.style.display = 'none';
+    installBtn.disabled = true;
+    installBtn.innerHTML = '<span class="button-icon">⚙️</span>Installing';
+    dismissBtn.style.display = 'none';
     window.electronAPI.startUpdate();
-  };
+  });
 
   // -------------------------
   // System Info Section
@@ -748,4 +779,136 @@ function refreshMasonryLayout() {
 }
 
 document.addEventListener('DOMContentLoaded', initMasonryLayout);
+
+// Developer Console Test Functions for Update Notification
+window.testUpdateNotification = {
+  // Show update available
+  showAvailable: (version = '2.1.0') => {
+    const notification = document.getElementById('update-notification');
+    const updateCard = notification?.querySelector('.update-card');
+    const updateText = document.getElementById('update-text');
+    const installBtn = document.getElementById('install-btn');
+    const dismissBtn = document.getElementById('dismiss-btn');
+    const updateProgress = document.getElementById('update-progress');
+    
+    updateText.textContent = `Version ${version} is ready to download.`;
+    updateCard?.classList.remove('downloading', 'ready', 'installing');
+    updateProgress.style.display = 'none';
+    installBtn.disabled = true;
+    installBtn.innerHTML = '<span class="button-icon">⬇️</span>Download';
+    dismissBtn.style.display = 'inline-flex';
+    notification.style.display = 'block';
+    
+    console.log('✅ Test: Update Available notification shown');
+  },
+  
+  // Simulate download progress
+  downloadProgress: (percent = 0) => {
+    const notification = document.getElementById('update-notification');
+    const updateCard = notification?.querySelector('.update-card');
+    const updateText = document.getElementById('update-text');
+    const installBtn = document.getElementById('install-btn');
+    const updateProgress = document.getElementById('update-progress');
+    const progressFill = document.getElementById('progress-fill');
+    const progressText = document.getElementById('progress-text');
+    
+    updateCard?.classList.add('downloading');
+    updateCard?.classList.remove('ready', 'installing');
+    updateText.textContent = 'Downloading update...';
+    updateProgress.style.display = 'block';
+    progressFill.style.width = `${percent}%`;
+    progressText.textContent = `${Math.round(percent)}%`;
+    installBtn.disabled = true;
+    installBtn.innerHTML = '<span class="button-icon">⬇️</span>Downloading';
+    notification.style.display = 'block';
+    
+    console.log(`⬇️ Test: Download progress ${percent}%`);
+  },
+  
+  // Simulate download complete
+  downloadComplete: () => {
+    const notification = document.getElementById('update-notification');
+    const updateCard = notification?.querySelector('.update-card');
+    const updateText = document.getElementById('update-text');
+    const installBtn = document.getElementById('install-btn');
+    const updateProgress = document.getElementById('update-progress');
+    
+    updateCard?.classList.add('ready');
+    updateCard?.classList.remove('downloading', 'installing');
+    updateText.textContent = 'Update downloaded successfully!';
+    updateProgress.style.display = 'none';
+    installBtn.disabled = false;
+    installBtn.innerHTML = '<span class="button-icon">📥</span>Install Now';
+    notification.style.display = 'block';
+    
+    console.log('✅ Test: Download complete notification shown');
+  },
+  
+  // Simulate installing state
+  installing: () => {
+    const notification = document.getElementById('update-notification');
+    const updateCard = notification?.querySelector('.update-card');
+    const updateText = document.getElementById('update-text');
+    const installBtn = document.getElementById('install-btn');
+    const dismissBtn = document.getElementById('dismiss-btn');
+    const updateProgress = document.getElementById('update-progress');
+    
+    updateCard?.classList.add('installing');
+    updateCard?.classList.remove('downloading', 'ready');
+    updateText.textContent = 'Installing update and restarting...';
+    updateProgress.style.display = 'none';
+    installBtn.disabled = true;
+    installBtn.innerHTML = '<span class="button-icon">⚙️</span>Installing';
+    dismissBtn.style.display = 'none';
+    notification.style.display = 'block';
+    
+    console.log('⚙️ Test: Installing notification shown');
+  },
+  
+  // Hide notification
+  hide: () => {
+    const notification = document.getElementById('update-notification');
+    notification.style.display = 'none';
+    console.log('❌ Test: Notification hidden');
+  },
+  
+  // Simulate full download sequence
+  simulateDownload: async (duration = 3000) => {
+    console.log('🚀 Test: Starting download simulation...');
+    window.testUpdateNotification.showAvailable();
+    
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // Animate progress from 0 to 100
+    for (let i = 0; i <= 100; i += 5) {
+      window.testUpdateNotification.downloadProgress(i);
+      await new Promise(resolve => setTimeout(resolve, duration / 20));
+    }
+    
+    await new Promise(resolve => setTimeout(resolve, 500));
+    window.testUpdateNotification.downloadComplete();
+    
+    console.log('✅ Test: Download simulation complete');
+  },
+  
+  // Show help in console
+  help: () => {
+    console.log(`
+🧪 Update Notification Test Commands:
+
+• testUpdateNotification.showAvailable('2.1.0')  - Show update available
+• testUpdateNotification.downloadProgress(50)    - Show download at 50%
+• testUpdateNotification.downloadComplete()      - Show download complete
+• testUpdateNotification.installing()            - Show installing state
+• testUpdateNotification.hide()                  - Hide notification
+• testUpdateNotification.simulateDownload(3000)  - Full download simulation
+• testUpdateNotification.help()                  - Show this help
+
+Example: testUpdateNotification.simulateDownload()
+    `);
+  }
+};
+
+// Auto-show help on load
+console.log('🧪 Update notification test functions loaded! Type "testUpdateNotification.help()" for commands.');
 

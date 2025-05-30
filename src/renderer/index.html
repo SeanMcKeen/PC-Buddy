@@ -7,10 +7,33 @@
 </head>
 <body>
 
-  <!-- ✅ Update notification banner -->
-  <div id="update-banner" style="display:none; padding: 12px; background: #1f1f1f; color: white; position: fixed; top: 0; width: 100%; text-align: center; z-index: 1000;">
-    <span id="update-text"></span>
-    <button id="install-btn" style="margin-left: 12px; padding: 6px 12px;">Install Update</button>
+  <!-- ✅ Modern Update Notification -->
+  <div id="update-notification" class="update-notification" style="display: none;">
+    <div class="update-card">
+      <div class="update-icon">
+        <span class="icon">⬆️</span>
+      </div>
+      <div class="update-content">
+        <h4 class="update-title">Update Available</h4>
+        <p id="update-text" class="update-message">A new version is available.</p>
+        <div class="update-progress" id="update-progress" style="display: none;">
+          <div class="progress-bar">
+            <div class="progress-fill" id="progress-fill"></div>
+          </div>
+          <span class="progress-text" id="progress-text">0%</span>
+        </div>
+      </div>
+      <div class="update-actions">
+        <button id="install-btn" class="update-button primary" disabled>
+          <span class="button-icon">📥</span>
+          Install Now
+        </button>
+        <button id="dismiss-btn" class="update-button secondary">
+          <span class="button-icon">✕</span>
+          Dismiss
+        </button>
+      </div>
+    </div>
   </div>
 
   <div id="app">
