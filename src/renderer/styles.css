@@ -3391,7 +3391,6 @@ input:checked + .toggle-slider:before {
   margin: 0 auto 16px auto;
   animation: bounce 2s infinite;
   border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(74, 144, 226, 0.3);
   filter: brightness(0) invert(1);
 }
 
