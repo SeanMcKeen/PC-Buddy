@@ -798,7 +798,22 @@ body.switching-sections .section.active {
 
 .setting-select:hover {
   border-color: var(--accent-primary);
-  background: linear-gradient(135deg, var(--accent-secondary), var(--accent-secondary-light));
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.setting-select:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.25);
+  background: var(--bg-secondary);
+}
+
+/* Style dropdown options for better visibility */
+.setting-select option {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  padding: 8px 12px;
 }
 
 .setting-button,
