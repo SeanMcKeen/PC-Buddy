@@ -134,10 +134,27 @@ contextBridge.exposeInMainWorld('startupAPI', {
 });
 
 contextBridge.exposeInMainWorld('folderAPI', {
-  openAppData: () => execCommand(`explorer "${path.join(os.homedir(), 'AppData')}"`, 'Opening AppData'),
-  openDownloads: () => execCommand(`explorer "${path.join(os.homedir(), 'Downloads')}"`, 'Opening Downloads'),
-  openDocuments: () => execCommand(`explorer "${path.join(os.homedir(), 'Documents')}"`, 'Opening Documents'),
-  openDesktop: () => execCommand(`explorer "${path.join(os.homedir(), 'Desktop')}"`, 'Opening Desktop')
+  openAppData: async () => {
+    // Use shell.openPath and restore window focus
+    const appDataPath = path.join(os.homedir(), 'AppData');
+    await shell.openPath(appDataPath);
+    setTimeout(() => ipcRenderer.invoke('ensure-apps-on-top').catch(console.error), 200);
+  },
+  openDownloads: async () => {
+    const downloadsPath = path.join(os.homedir(), 'Downloads');
+    await shell.openPath(downloadsPath);
+    setTimeout(() => ipcRenderer.invoke('ensure-apps-on-top').catch(console.error), 200);
+  },
+  openDocuments: async () => {
+    const documentsPath = path.join(os.homedir(), 'Documents');
+    await shell.openPath(documentsPath);
+    setTimeout(() => ipcRenderer.invoke('ensure-apps-on-top').catch(console.error), 200);
+  },
+  openDesktop: async () => {
+    // Fix Desktop path - use proper Windows Desktop path
+    await execCommand(`explorer "${path.join(os.homedir(), 'Desktop')}"`, 'Opening Desktop');
+    setTimeout(() => ipcRenderer.invoke('ensure-apps-on-top').catch(console.error), 200);
+  }
 });
 
 contextBridge.exposeInMainWorld('cleanupAPI', {
@@ -165,15 +182,44 @@ contextBridge.exposeInMainWorld('systemAPI', {
     
     return shell.openPath(sanitizedPath);
   },
-  openControlPanel: () => shell.openExternal('ms-settings:appsfeatures'),
-  openProgramsAndFeatures: () => shell.openExternal('appwiz.cpl'),
-  openDeviceManager: () => shell.openExternal('devmgmt.msc'),
-  openSystemProperties: () => shell.openExternal('sysdm.cpl'),
-  openNetworkSettings: () => shell.openExternal('ms-settings:network'),
-  openWifiSettings: () => shell.openExternal('ms-settings:network-wifi'),
-  openDisplaySettings: () => shell.openExternal('ms-settings:display'),
-  openSoundSettings: () => shell.openExternal('ms-settings:sound'),
-  openWindowsUpdate: () => shell.openExternal('ms-settings:windowsupdate'),
+  openControlPanel: async () => {
+    // Open actual Control Panel using Windows run command
+    await execCommand('control', 'Opening Control Panel');
+    setTimeout(() => ipcRenderer.invoke('ensure-apps-on-top').catch(console.error), 200);
+  },
+  openProgramsAndFeatures: async () => {
+    // Open Programs and Features (Add/Remove Programs)
+    await execCommand('appwiz.cpl', 'Opening Programs and Features');
+    setTimeout(() => ipcRenderer.invoke('ensure-apps-on-top').catch(console.error), 200);
+  },
+  openDeviceManager: async () => {
+    // Open Device Manager
+    await execCommand('devmgmt.msc', 'Opening Device Manager');
+    setTimeout(() => ipcRenderer.invoke('ensure-apps-on-top').catch(console.error), 200);
+  },
+  openSystemProperties: async () => {
+    // Open System Properties
+    await execCommand('sysdm.cpl', 'Opening System Properties');
+    setTimeout(() => ipcRenderer.invoke('ensure-apps-on-top').catch(console.error), 200);
+  },
+  openDisplaySettings: async () => {
+    // Open Display Settings
+    await shell.openExternal('ms-settings:display');
+    setTimeout(() => ipcRenderer.invoke('ensure-apps-on-top').catch(console.error), 200);
+  },
+  openSoundSettings: async () => {
+    // Open Sound Settings
+    await shell.openExternal('ms-settings:sound');
+    setTimeout(() => ipcRenderer.invoke('ensure-apps-on-top').catch(console.error), 200);
+  },
+  openWindowsUpdate: async () => {
+    // Open Windows Update
+    await shell.openExternal('ms-settings:windowsupdate');
+    setTimeout(() => ipcRenderer.invoke('ensure-apps-on-top').catch(console.error), 200);
+  },
+  bringWindowToFront: () => ipcRenderer.invoke('bring-window-to-front'),
+  setAlwaysOnTop: (enabled) => ipcRenderer.invoke('set-always-on-top', enabled),
+  ensureAppsOnTop: () => ipcRenderer.invoke('ensure-apps-on-top'),
   runPowerShellCommand: (command) => {
     // Validate PowerShell command input
     if (typeof command !== 'string' || command.length === 0 || command.length > 1000) {

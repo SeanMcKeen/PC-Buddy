@@ -29,6 +29,7 @@ function createWindow() {
     height: 1080,
     icon: path.join(__dirname, '../assets/images/logo.png'),
     autoHideMenuBar: true,
+    alwaysOnTop: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -814,4 +815,32 @@ ipcMain.handle('delete-backup', async (event, backupFile) => {
       reject(new Error(`Failed to delete backup: ${error.message}`));
     }
   });
+});
+
+// Window focus management for shortcuts
+ipcMain.handle('bring-window-to-front', async () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    // Just ensure our window isn't always on top so other apps can appear above it naturally
+    mainWindow.setAlwaysOnTop(false);
+    return true;
+  }
+  return false;
+});
+
+ipcMain.handle('set-always-on-top', async (event, enabled) => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.setAlwaysOnTop(enabled);
+    return enabled;
+  }
+  return false;
+});
+
+// Handler to temporarily reduce window focus so other apps can appear on top
+ipcMain.handle('ensure-apps-on-top', async () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    // Just ensure we're not always on top so other apps can appear above us naturally
+    mainWindow.setAlwaysOnTop(false);
+    return true;
+  }
+  return false;
 });

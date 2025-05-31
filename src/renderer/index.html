@@ -28,7 +28,7 @@
         </div>
       </div>
       <div class="loading-footer">
-        <div class="loading-version">v0.2.2</div>
+        <div class="loading-version" id="loadingVersion">v0.2.3</div>
         <div class="loading-author">Created by Sean McKeen</div>
       </div>
     </div>
@@ -81,8 +81,8 @@
         </ul>
       </nav>
       <div class="sidebar-footer">
-        <div class="version-info">v0.2.2</div>
-        <div class="author-credit">by Sean McKeen</div>
+        <div class="version-info" id="sidebarVersion">v0.2.3</div>
+        <div class="author-credit">Sean McKeen</div>
       </div>
     </div>
 
@@ -250,22 +250,6 @@
             <button class="shortcut-btn" onclick="window.systemAPI.openSystemProperties()">
               <span class="shortcut-icon">🏠</span>
               <span class="shortcut-label">System Properties</span>
-            </button>
-          </div>
-        </div>
-
-        <!-- Network & Internet Card -->
-        <div class="tool-card" id="networkCard">
-          <h3><span class="icon">🌐</span> Network & Internet</h3>
-          <p class="description">Manage your internet connection and network settings.</p>
-          <div class="shortcut-grid">
-            <button class="shortcut-btn" onclick="window.systemAPI.openNetworkSettings()">
-              <span class="shortcut-icon">📶</span>
-              <span class="shortcut-label">Network Settings</span>
-            </button>
-            <button class="shortcut-btn" onclick="window.systemAPI.openWifiSettings()">
-              <span class="shortcut-icon">📶</span>
-              <span class="shortcut-label">WiFi Settings</span>
             </button>
           </div>
         </div>
@@ -499,7 +483,7 @@
           <div class="about-info">
             <div class="about-item">
               <span class="about-label">Version:</span>
-              <span class="about-value" id="aboutVersion">v0.2.2</span>
+              <span class="about-value" id="aboutVersion">v0.2.3</span>
             </div>
             <div class="about-item">
               <span class="about-label">Author:</span>

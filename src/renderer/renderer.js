@@ -384,10 +384,24 @@ window.addEventListener('DOMContentLoaded', async () => {
       autoRefreshToggle.checked = settings.autoRefresh;
     }
     
-    // Update about version
-    const aboutVersion = document.getElementById('aboutVersion');
-    if (aboutVersion && window.systemInfoAPI?.getAppVersion) {
-      aboutVersion.textContent = `v${window.systemInfoAPI.getAppVersion()}`;
+    // Update all version displays dynamically
+    if (window.systemInfoAPI?.getAppVersion) {
+      const version = `v${window.systemInfoAPI.getAppVersion()}`;
+      
+      const aboutVersion = document.getElementById('aboutVersion');
+      if (aboutVersion) {
+        aboutVersion.textContent = version;
+      }
+      
+      const loadingVersion = document.getElementById('loadingVersion');
+      if (loadingVersion) {
+        loadingVersion.textContent = version;
+      }
+      
+      const sidebarVersion = document.getElementById('sidebarVersion');
+      if (sidebarVersion) {
+        sidebarVersion.textContent = version;
+      }
     }
   }
   
@@ -2222,14 +2236,39 @@ function openCustomShortcut(path) {
   // Determine if it's a URL or file path
   if (sanitizedPath.startsWith('http://') || sanitizedPath.startsWith('https://')) {
     // Open URL in default browser
-    window.electronAPI && window.electronAPI.openExternal ? 
+    const promise = window.electronAPI && window.electronAPI.openExternal ? 
       window.electronAPI.openExternal(sanitizedPath) : 
-      window.open(sanitizedPath, '_blank');
+      shell.openExternal(sanitizedPath);
+    
+    promise.then(() => {
+      console.log('[customShortcut] URL opened successfully');
+      // Ensure apps open on top
+      setTimeout(() => {
+        if (window.systemAPI?.ensureAppsOnTop) {
+          window.systemAPI.ensureAppsOnTop().catch(console.error);
+        }
+      }, 200);
+    }).catch(error => {
+      console.error('[customShortcut] Failed to open URL:', error);
+      alert('Failed to open URL. Please check the URL format.');
+    });
   } else {
-    // Open file/folder with system default
-    window.systemAPI.openPath(sanitizedPath).catch(error => {
-      console.error('[Custom Shortcut] Failed to open path:', error);
-      alert('Failed to open shortcut: ' + error.message);
+    // Open file/folder path
+    const promise = window.systemAPI?.openPath ? 
+      window.systemAPI.openPath(sanitizedPath) : 
+      shell.openPath(sanitizedPath);
+    
+    promise.then(() => {
+      console.log('[customShortcut] Path opened successfully');
+      // Ensure apps open on top
+      setTimeout(() => {
+        if (window.systemAPI?.ensureAppsOnTop) {
+          window.systemAPI.ensureAppsOnTop().catch(console.error);
+        }
+      }, 200);
+    }).catch(error => {
+      console.error('[customShortcut] Failed to open path:', error);
+      alert('Failed to open shortcut. Please check the path format.');
     });
   }
 }
