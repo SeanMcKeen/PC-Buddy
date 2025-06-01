@@ -5,6 +5,7 @@ const os = require('os');
 const path = require('path');
 const { exec } = require('child_process');
 const { shell } = require('electron');
+const fs = require('fs');
 
 // Helper function to execute commands
 function execCommand(command, description) {
@@ -135,25 +136,49 @@ contextBridge.exposeInMainWorld('startupAPI', {
 
 contextBridge.exposeInMainWorld('folderAPI', {
   openAppData: async () => {
-    // Use shell.openPath and restore window focus
+    // Use enhanced path opening method that forces windows to top
     const appDataPath = path.join(os.homedir(), 'AppData');
-    await shell.openPath(appDataPath);
-    setTimeout(() => ipcRenderer.invoke('ensure-apps-on-top').catch(console.error), 200);
+    await ipcRenderer.invoke('open-path', appDataPath);
   },
   openDownloads: async () => {
     const downloadsPath = path.join(os.homedir(), 'Downloads');
-    await shell.openPath(downloadsPath);
-    setTimeout(() => ipcRenderer.invoke('ensure-apps-on-top').catch(console.error), 200);
+    await ipcRenderer.invoke('open-path', downloadsPath);
   },
   openDocuments: async () => {
     const documentsPath = path.join(os.homedir(), 'Documents');
-    await shell.openPath(documentsPath);
-    setTimeout(() => ipcRenderer.invoke('ensure-apps-on-top').catch(console.error), 200);
+    await ipcRenderer.invoke('open-path', documentsPath);
   },
   openDesktop: async () => {
-    // Fix Desktop path - use proper Windows Desktop path
-    await execCommand(`explorer "${path.join(os.homedir(), 'Desktop')}"`, 'Opening Desktop');
-    setTimeout(() => ipcRenderer.invoke('ensure-apps-on-top').catch(console.error), 200);
+    // Fix Desktop path - check multiple possible locations
+    
+    // Common Desktop paths on Windows
+    const possibleDesktopPaths = [
+      path.join(os.homedir(), 'OneDrive', 'Desktop'),  // OneDrive Desktop
+      path.join(os.homedir(), 'Desktop'),              // Standard Desktop  
+      path.join(os.homedir(), 'OneDrive', 'Bureau'),   // French OneDrive
+      path.join(os.homedir(), 'Bureau')                // French standard
+    ];
+    
+    // Find the first existing Desktop path
+    let desktopPath = null;
+    for (const testPath of possibleDesktopPaths) {
+      try {
+        if (fs.existsSync(testPath)) {
+          desktopPath = testPath;
+          break;
+        }
+      } catch (error) {
+        console.log(`[Desktop] Path check failed for ${testPath}:`, error.message);
+      }
+    }
+    
+    if (!desktopPath) {
+      // Fallback to standard path even if it doesn't exist
+      desktopPath = path.join(os.homedir(), 'Desktop');
+    }
+    
+    console.log(`[Desktop] Using path: ${desktopPath}`);
+    await ipcRenderer.invoke('open-path', desktopPath);
   }
 });
 
@@ -183,24 +208,20 @@ contextBridge.exposeInMainWorld('systemAPI', {
     return shell.openPath(sanitizedPath);
   },
   openControlPanel: async () => {
-    // Open actual Control Panel using Windows run command
-    await execCommand('control', 'Opening Control Panel');
-    setTimeout(() => ipcRenderer.invoke('ensure-apps-on-top').catch(console.error), 200);
+    // Open actual Control Panel using enhanced Windows command
+    await ipcRenderer.invoke('exec-command', 'powershell -Command "Start-Process control -WindowStyle Normal"');
   },
   openProgramsAndFeatures: async () => {
-    // Open Programs and Features (Add/Remove Programs)
-    await execCommand('appwiz.cpl', 'Opening Programs and Features');
-    setTimeout(() => ipcRenderer.invoke('ensure-apps-on-top').catch(console.error), 200);
+    // Open Programs and Features using enhanced command
+    await ipcRenderer.invoke('exec-command', 'powershell -Command "Start-Process appwiz.cpl -WindowStyle Normal"');
   },
   openDeviceManager: async () => {
-    // Open Device Manager
-    await execCommand('devmgmt.msc', 'Opening Device Manager');
-    setTimeout(() => ipcRenderer.invoke('ensure-apps-on-top').catch(console.error), 200);
+    // Open Device Manager using enhanced command
+    await ipcRenderer.invoke('exec-command', 'powershell -Command "Start-Process devmgmt.msc -WindowStyle Normal"');
   },
   openSystemProperties: async () => {
-    // Open System Properties
-    await execCommand('sysdm.cpl', 'Opening System Properties');
-    setTimeout(() => ipcRenderer.invoke('ensure-apps-on-top').catch(console.error), 200);
+    // Open System Properties using enhanced command
+    await ipcRenderer.invoke('exec-command', 'powershell -Command "Start-Process sysdm.cpl -WindowStyle Normal"');
   },
   openDisplaySettings: async () => {
     // Open Display Settings
@@ -261,4 +282,17 @@ contextBridge.exposeInMainWorld('backupAPI', {
   selectBackupPath: () => ipcRenderer.invoke('select-backup-path'),
   getBackupPath: () => ipcRenderer.invoke('get-backup-path'),
   deleteBackup: (backupFile) => ipcRenderer.invoke('delete-backup', backupFile)
+});
+
+// Network API - MISSING FROM THIS FILE!
+contextBridge.exposeInMainWorld('networkAPI', {
+  getNetworkInfo: () => ipcRenderer.invoke('get-network-info'),
+  testConnectivity: (target) => ipcRenderer.invoke('test-connectivity', target),
+  traceRoute: (target) => ipcRenderer.invoke('trace-route', target),
+  performDnsLookup: (domain) => ipcRenderer.invoke('dns-lookup', domain),
+  flushDns: () => ipcRenderer.invoke('flush-dns'),
+  renewIpConfig: () => ipcRenderer.invoke('renew-ip-config'),
+  resetNetworkStack: () => ipcRenderer.invoke('reset-network-stack'),
+  getNetworkAdapters: () => ipcRenderer.invoke('get-network-adapters'),
+  pingHost: (host) => ipcRenderer.invoke('ping-host', host)
 });

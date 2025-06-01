@@ -72,8 +72,9 @@
       <nav class="sidebar-nav">
         <ul class="nav-items">
         <li class="active" data-section="systemHealth" title="System Health"><span class="icon">🖥️</span><span class="label">System Health</span></li>
-          <li data-section="shortcuts" title="Shortcuts"><span class="icon">⚡</span><span class="label">Shortcuts</span></li>
+        <li data-section="network" title="Network"><span class="icon">🌐</span><span class="label">Network</span></li>
         <li data-section="drivers" title="Drivers"><span class="icon">🔌</span><span class="label">Drivers</span></li>
+        <li data-section="shortcuts" title="Shortcuts"><span class="icon">⚡</span><span class="label">Shortcuts</span></li>
       </ul>
         <div class="sidebar-divider"></div>
         <ul class="settings-items">
@@ -293,6 +294,115 @@
             <span class="add-icon">➕</span>
             Add Custom Shortcut
           </button>
+        </div>
+      </div>
+
+      <div id="network" class="section">
+        <!-- Network Information Card -->
+        <div class="tool-card" id="networkInfoCard">
+          <h3><span class="icon">📡</span> Network Information</h3>
+          <p class="description">View detailed information about your network connection and internet settings.</p>
+          <div id="networkInfoGrid" class="system-info-grid">
+            <!-- Network info will be populated here -->
+          </div>
+          <button class="tool-btn secondary" onclick="refreshNetworkInfo()">
+            <span class="btn-icon">🔄</span>
+            Refresh Network Info
+          </button>
+        </div>
+
+        <!-- Connection Test Card -->
+        <div class="tool-card" id="connectivityTestCard">
+          <h3><span class="icon">🌐</span> Internet Connection Test</h3>
+          <p class="description">Test connectivity to websites and services to diagnose network connectivity issues.</p>
+          
+          <div class="form-group">
+            <label for="connectivityTarget">Website or IP Address:</label>
+            <div class="connectivity-input-group">
+              <input type="text" id="connectivityTarget" placeholder="Enter website (google.com) or IP address (8.8.8.8)" maxlength="255">
+              <button class="tool-btn" onclick="testConnectivity()">
+                <span class="btn-icon">🔍</span>
+                Test Connection
+              </button>
+            </div>
+            <small style="color: var(--text-muted); font-size: 0.85rem; margin-top: 5px; display: block;">
+              ℹ️ Safe diagnostic test that checks network connectivity without modifying settings
+            </small>
+          </div>
+
+          <div class="connectivity-results" id="connectivityResults" style="display: none;">
+            <div class="connectivity-status-container">
+              <div class="connectivity-status" id="connectivityStatus"></div>
+            </div>
+            <div class="connectivity-details-container">
+              <div class="connectivity-details" id="connectivityDetails"></div>
+            </div>
+            <div class="connectivity-actions">
+              <button class="tool-btn secondary" id="advancedTraceBtn" onclick="showAdvancedTrace()" style="display: none;">
+                <span class="btn-icon">🛤️</span>
+                Show Route Trace (Advanced)
+              </button>
+            </div>
+            <div class="trace-results" id="traceResults" style="display: none;"></div>
+          </div>
+
+          <div class="loadingMessage" style="display: none;">
+            <p class="statusText">Testing Connection</p>
+            <div class="connection-progress">
+              <div class="progress-bar">
+                <div class="progress-fill" id="connectionProgressFill"></div>
+              </div>
+              <div class="progress-text" id="connectionProgressText">0%</div>
+            </div>
+            <p class="estimatedTime">This may take 5-15 seconds</p>
+          </div>
+        </div>
+
+        <!-- Network Adapters Card -->
+        <div class="tool-card" id="networkAdaptersCard">
+          <h3><span class="icon">🔌</span> Network Adapters</h3>
+          <p class="description">View all network adapters on your system with their status, IP addresses, and connection details.</p>
+          <div id="networkAdaptersGrid" class="network-adapters-grid">
+            <!-- Network adapters will be populated here -->
+          </div>
+          <button class="tool-btn secondary" onclick="refreshNetworkAdapters()">
+            <span class="btn-icon">🔄</span>
+            Refresh Network Adapters
+          </button>
+        </div>
+
+        <!-- DNS Lookup Card -->
+        <div class="tool-card" id="dnsLookupCard">
+          <h3><span class="icon">🔍</span> DNS Address Lookup</h3>
+          <p class="description">Look up IP addresses and DNS records for websites to troubleshoot domain resolution issues.</p>
+          
+          <div class="form-group">
+            <label for="dnsTarget">Website Name:</label>
+            <div class="connectivity-input-group">
+              <input type="text" id="dnsTarget" placeholder="Enter website name (example.com)" maxlength="255">
+              <button class="tool-btn" onclick="performDnsLookup()">
+                <span class="btn-icon">🔍</span>
+                Lookup DNS
+              </button>
+            </div>
+            <small style="color: var(--text-muted); font-size: 0.85rem; margin-top: 5px; display: block;">
+              ℹ️ Safe diagnostic tool that queries DNS servers without making changes
+            </small>
+          </div>
+
+          <div class="dns-results" id="dnsResults" style="display: none;">
+            <!-- DNS results will be populated here -->
+          </div>
+
+          <div class="loadingMessage" style="display: none;">
+            <div class="modern-spinner">
+              <div class="spinner-ring"></div>
+              <div class="spinner-ring"></div>
+              <div class="spinner-ring"></div>
+            </div>
+            <p class="statusText">Looking up DNS Records</p>
+            <p class="estimatedTime">This may take 5-10 seconds</p>
+          </div>
         </div>
       </div>
 
@@ -565,7 +675,7 @@
       
       <div class="emoji-categories">
         <button class="emoji-category active" data-category="smileys" onclick="switchEmojiCategory('smileys')">😀</button>
-        <button class="emoji-category" data-category="people" onclick="switchEmojiCategory('people')">👤</button>
+        <button class="emoji-category" data-category="people" onclick="switchEmojiCategory('people')">��</button>
         <button class="emoji-category" data-category="animals" onclick="switchEmojiCategory('animals')">🐶</button>
         <button class="emoji-category" data-category="food" onclick="switchEmojiCategory('food')">🍎</button>
         <button class="emoji-category" data-category="activities" onclick="switchEmojiCategory('activities')">⚽</button>
@@ -580,6 +690,7 @@
     </div>
   </div>
 
+  <script src="utils.js"></script>
   <script src="renderer.js"></script>
 </body>
 </html>

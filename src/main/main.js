@@ -1,10 +1,23 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, dialog, Notification } = require('electron');
 const path = require('path');
 const { autoUpdater } = require('electron-updater');
 const fs = require('fs');
 const sudo = require('sudo-prompt');
 const { spawn, exec } = require('child_process');
 const os = require('os');
+
+// Import utility classes
+const {
+  PowerShellUtils,
+  ValidationUtils,
+  BackupUtils,
+  NetworkUtils,
+  SystemUtils,
+  setLogger,
+  sanitizeForShell,
+  validatePath,
+  getScriptPath
+} = require('./utilities');
 
 // Sudo options for elevated commands
 const options = { name: 'PC Buddy' };
@@ -18,6 +31,9 @@ function log(...args) {
   console.log(...args);
   fs.appendFileSync(logFile, msg);
 }
+
+// Set the logger for utilities
+setLogger(log);
 
 autoUpdater.logger = { info: log, warn: log, error: log, debug: log };
 
@@ -79,109 +95,37 @@ ipcMain.on('start-update', () => {
 
 app.whenReady().then(createWindow);
 
-// Helper function to get script path based on packaging
-function getScriptPath(scriptName) {
-  return app.isPackaged
-    ? path.join(process.resourcesPath, 'assets', scriptName)
-    : path.join(__dirname, '..', 'assets', scriptName);
-}
-
-// Enhanced security helper functions
-function sanitizeForShell(input) {
-  if (typeof input !== 'string') {
-    throw new Error('Input must be a string');
-  }
-  
-  // Remove or escape dangerous characters for shell commands (Windows path safe)
-  return input
-    .replace(/[;&|`$(){}[\]<>]/g, '') // Remove shell metacharacters (preserve backslash and colon for Windows paths)
-    .replace(/\.\./g, '') // Remove directory traversal attempts
-    .replace(/^\s+|\s+$/g, '') // Trim whitespace
-    .substring(0, 500); // Limit length to prevent buffer overflow attempts
-}
-
-function validatePath(path) {
-  if (typeof path !== 'string' || path.length === 0 || path.length > 260) {
-    throw new Error('Invalid path format');
-  }
-  
-  // Block only truly dangerous path patterns (Windows-compatible)
-  const dangerousPatterns = [
-    /\.\./,                    // Directory traversal
-    /[<>"|?*]/,               // Invalid Windows path chars (excluding colon for drive letters)
-    /:.*:/,                   // Multiple colons (invalid)
-    /^[^A-Za-z].*:/,         // Colon not after drive letter
-    /^\\\\.*\\admin\$/i,     // Admin shares
-    /^\\\\.*\\c\$/i,         // Hidden C$ shares
-    /script:/i,               // Script protocols
-    /javascript:/i,           // JavaScript protocol
-    /vbscript:/i,            // VBScript protocol
-    /data:/i                  // Data protocol
-  ];
-  
-  // Check for reserved Windows names in path components
-  const pathComponents = path.split(/[\\\/]/);
-  const reservedNames = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
-  
-  for (const component of pathComponents) {
-    if (component && reservedNames.test(component.split('.')[0])) {
-      throw new Error('Path contains reserved Windows name');
-    }
-  }
-  
-  for (const pattern of dangerousPatterns) {
-    if (pattern.test(path)) {
-      throw new Error('Path contains potentially dangerous patterns');
-    }
-  }
-  
-  return path;
-}
-
 // System repair handler with enhanced security
 ipcMain.handle('run-sfc-and-dism', async () => {
-  return new Promise((resolve, reject) => {
+  try {
     // Ensure only authorized SFC command is run
-    const sfcCommand = 'sfc /scannow';
-    
-    sudo.exec(sfcCommand, options, (sfcErr, sfcOut, sfcErrOut) => {
-      const output = sfcOut + sfcErrOut;
-      const needsDism = /unable to fix/i.test(output);
+    const sfcResult = await SystemUtils.executeSudoCommand('sfc /scannow', 'run-sfc-and-dism');
+    const needsDism = /unable to fix/i.test(sfcResult);
 
-      if (sfcErr) {
-        log('[SFC Error]', sfcErr);
-        return reject(new Error('System scan failed. Please try running as administrator.'));
-      }
-
-      if (needsDism) {
-        // Ensure only authorized DISM command is run
-        const dismCommand = 'DISM /Online /Cleanup-Image /RestoreHealth';
-        
-        sudo.exec(dismCommand, options, (dismErr) => {
-          if (dismErr) {
-            log('[DISM Error]', dismErr);
-            return reject(new Error('SFC found problems but DISM repair failed.'));
-          }
-          return resolve('SFC found problems. DISM repair completed successfully.');
-        });
-      } else {
-        return resolve('SFC scan completed successfully. No problems found.');
-      }
-    });
-  });
+    if (needsDism) {
+      // Ensure only authorized DISM command is run
+      await SystemUtils.executeSudoCommand('DISM /Online /Cleanup-Image /RestoreHealth', 'run-sfc-and-dism');
+      return 'SFC found problems. DISM repair completed successfully.';
+    } else {
+      return 'SFC scan completed successfully. No problems found.';
+    }
+  } catch (error) {
+    if (error.message.includes('unable to fix')) {
+      return 'SFC found problems but DISM repair failed.';
+    }
+    throw ValidationUtils.createError('System scan failed. Please try running as administrator.', 'run-sfc-and-dism');
+  }
 });
 
 // Disk cleanup handler
 ipcMain.handle('run-disk-cleanup', async () => {
-  return new Promise((resolve) => {
-    sudo.exec('cleanmgr /sagerun:1', options, (err) => {
-      if (err) {
-        log('[Disk Cleanup Error]', err);
-        return resolve('Disk cleanup failed.');
-      }
-      return resolve('Disk cleanup completed successfully.');
-    });
-  });
+  try {
+    await SystemUtils.executeSudoCommand('cleanmgr /sagerun:1', 'run-disk-cleanup');
+    return 'Disk cleanup completed successfully.';
+  } catch (error) {
+    log('[Disk Cleanup Error]', error);
+    return 'Disk cleanup failed.';
+  }
 });
 
 // Normalize startup items for consistent structure
@@ -198,7 +142,7 @@ function normalizeStartupItems(items) {
   });
 }
 
-// Fetch startup programs
+// Fetch startup programs using new utility classes
 function fetchStartupPrograms() {
   return new Promise((resolve, reject) => {
     const scriptPath = getScriptPath('getStartupPrograms.ps1');
@@ -220,7 +164,7 @@ function fetchStartupPrograms() {
       log('[Debug] PowerShell exit code:', code);
       if (stderr) log('[Debug] PowerShell stderr:', stderr);
 
-      if (code !== 0) return reject(new Error(`PowerShell script failed: ${stderr}`));
+      if (code !== 0) return reject(ValidationUtils.createError(`PowerShell script failed: ${stderr}`, 'fetchStartupPrograms'));
 
       try {
         const raw = fs.readFileSync(tempJsonPath, 'utf8').replace(/^\uFEFF/, '');
@@ -229,13 +173,13 @@ function fetchStartupPrograms() {
         log('[Debug] Normalized startup items count:', normalized.length);
         resolve(normalized);
       } catch (err) {
-        reject(new Error(`Failed to parse JSON from file: ${err.message}`));
+        reject(ValidationUtils.createError(`Failed to parse JSON from file: ${err.message}`, 'fetchStartupPrograms'));
       }
     });
   });
 }
 
-// IPC handlers
+// IPC handlers using new utility classes
 ipcMain.handle('get-startup-programs', async () => {
   const list = await fetchStartupPrograms();
   return list.sort((a, b) => a.priority - b.priority);
@@ -244,226 +188,90 @@ ipcMain.handle('get-startup-programs', async () => {
 ipcMain.handle('toggle-startup-program', async (event, programName, enable) => {
   const list = await fetchStartupPrograms();
   const item = list.find(p => p.Name.toLowerCase() === programName.toLowerCase());
-  if (!item) throw new Error(`Startup item '${programName}' not found`);
+  if (!item) throw ValidationUtils.createError(`Startup item '${programName}' not found`, 'toggle-startup-program');
 
-  const scriptPath = getScriptPath('toggleStartup.ps1');
-  const command = `powershell -NoProfile -ExecutionPolicy Bypass -File "${scriptPath}" -Name "${item.RegistryName}" -Source "${item.Source}" -Enable ${enable ? '1' : '0'}`;
-
-  return new Promise((resolve, reject) => {
-    sudo.exec(command, options, (err, stdout, stderr) => {
-      if (err) return reject(new Error(stderr || err.message));
-      resolve(stdout.trim());
-    });
-  });
-});
-
-ipcMain.on('open-task-manager', () => {
-  exec('start taskmgr.exe /0 /startup', (error) => {
-    if (error) log('Failed to open Task Manager:', error);
-  });
+  const args = [`-Name "${item.RegistryName}"`, `-Source "${item.Source}"`, `-Enable ${enable ? '1' : '0'}`];
+  return await PowerShellUtils.executeScript('toggleStartup.ps1', args, true);
 });
 
 ipcMain.handle('clean-drive', async (event, driveLetter = 'C') => {
-  return new Promise((resolve) => {
+  try {
     const letter = driveLetter.toUpperCase().replace(':', '');
-    const scriptPath = getScriptPath('deepClean.ps1');
-    const command = `powershell -ExecutionPolicy Bypass -NoProfile -File "${scriptPath}" -DriveLetter ${letter}`;
-
-    exec(command, { maxBuffer: 1024 * 1024 }, (error, stdout, stderr) => {
-      if (error) {
-        log('[Deep Clean Error]', error);
-        return resolve(`Cleanup failed for ${letter}:.`);
-      }
-      log('[Deep Clean Output]', stdout);
-      resolve(`Cleanup completed for ${letter}:.`);
-    });
-  });
+    const args = [`-DriveLetter ${letter}`];
+    const result = await PowerShellUtils.executeScript('deepClean.ps1', args);
+    log('[Deep Clean Output]', result);
+    return `Cleanup completed for ${letter}:.`;
+  } catch (error) {
+    log('[Deep Clean Error]', error);
+    return `Cleanup failed for ${driveLetter}:.`;
+  }
 });
 
 ipcMain.handle('get-disk-usage', async () => {
-  return new Promise((resolve, reject) => {
-    const scriptPath = getScriptPath('getDiskUsage.ps1');
-    const command = `powershell -NoProfile -ExecutionPolicy Bypass -File "${scriptPath}"`;
-
-    exec(command, (error, stdout, stderr) => {
-      if (error) {
-        log('[get-disk-usage] PowerShell exec error:', error);
-        return reject(error);
-      }
-
-      try {
-        const data = JSON.parse(stdout);
-        resolve(data);
-      } catch (parseError) {
-        log('[get-disk-usage] JSON parse error:', parseError);
-        log('[stdout]', stdout);
-        reject(parseError);
-      }
-    });
-  });
+  try {
+    const result = await PowerShellUtils.executeScript('getDiskUsage.ps1');
+    return JSON.parse(result);
+  } catch (error) {
+    if (error.message.includes('JSON')) {
+      log('[get-disk-usage] JSON parse error:', error);
+    } else {
+      log('[get-disk-usage] PowerShell exec error:', error);
+    }
+    throw error;
+  }
 });
-
-// Helper function to get current backup path
-async function getCurrentBackupPath() {
-  return new Promise((resolve, reject) => {
-    // Use Windows reg command to query the registry (matches how we write it)
-    const regCommand = `reg query "HKCU\\Software\\PC-Buddy" /v BackupLocation 2>nul`;
-    
-    exec(regCommand, (error, stdout, stderr) => {
-      if (error) {
-        log('[getCurrentBackupPath] Registry query failed:', error);
-        // Fallback to JavaScript default
-        const os = require('os');
-        const path = require('path');
-        const defaultPath = path.join(os.homedir(), 'Documents', 'PC-Buddy-Backups');
-        log('[getCurrentBackupPath] Using JavaScript fallback:', defaultPath);
-        resolve(defaultPath);
-      } else {
-        log('[getCurrentBackupPath] Registry query stdout:', JSON.stringify(stdout));
-        
-        // Parse the reg query output - try multiple patterns
-        // Pattern 1: "    BackupLocation    REG_SZ    C:\path\here"
-        let match = stdout.match(/BackupLocation\s+REG_SZ\s+(.+?)(?:\s*$|\r|\n)/m);
-        
-        // Pattern 2: Try simpler pattern if first fails
-        if (!match) {
-          match = stdout.match(/REG_SZ\s+(.+?)(?:\s*$|\r|\n)/m);
-        }
-        
-        if (match && match[1] && match[1].trim()) {
-          const registryPath = match[1].trim();
-          log('[getCurrentBackupPath] Found registry path:', registryPath);
-          resolve(registryPath);
-        } else {
-          // No registry value found, use default
-          const os = require('os');
-          const path = require('path');
-          const defaultPath = path.join(os.homedir(), 'Documents', 'PC-Buddy-Backups');
-          log('[getCurrentBackupPath] No registry value found in output, using default:', defaultPath);
-          resolve(defaultPath);
-        }
-      }
-    });
-  });
-}
 
 // Backup Management Handlers with Enhanced Security
 ipcMain.handle('create-backup', async () => {
-  return new Promise(async (resolve, reject) => {
-    try {
-      const backupPath = await getCurrentBackupPath();
-      
-      // Validate backup path for security
-      try {
-        validatePath(backupPath);
-      } catch (pathError) {
-        log('[create-backup] Invalid backup path:', pathError.message);
-        return reject(new Error('Invalid backup path specified'));
-      }
-      
-      const scriptPath = getScriptPath('createBackup.ps1');
-      
-      // Sanitize backup path for PowerShell execution
-      const sanitizedBackupPath = sanitizeForShell(backupPath);
-      
-      const command = `powershell -NoProfile -ExecutionPolicy Bypass -File "${scriptPath}" -BackupLocation "${sanitizedBackupPath}"`;
-    
-      log('[create-backup] Running command with sanitized path');
-      log('[create-backup] Using backup path:', sanitizedBackupPath);
-    
-      sudo.exec(command, options, (error, stdout, stderr) => {
-        if (error) {
-          log('[create-backup] Error:', error);
-          log('[create-backup] Stderr:', stderr);
-          return reject(new Error(`Backup failed: ${error.message}`));
-        }
-        
-        log('[create-backup] Success:', stdout);
-        resolve(stdout.trim());
-      });
-    } catch (pathError) {
-      log('[create-backup] Path error:', pathError);
-      reject(new Error(`Failed to get backup path: ${pathError.message}`));
-    }
-  });
+  try {
+    return await BackupUtils.executeWithBackupPath('createBackup.ps1', 'create-backup');
+  } catch (error) {
+    log('[create-backup] Error:', error);
+    throw ValidationUtils.createError(`Backup failed: ${error.message}`, 'create-backup');
+  }
 });
 
 ipcMain.handle('get-backup-info', async () => {
-  return new Promise(async (resolve, reject) => {
-    try {
-      const backupPath = await getCurrentBackupPath();
-      
-      // Validate backup path for security
-      try {
-        validatePath(backupPath);
-      } catch (pathError) {
-        log('[get-backup-info] Invalid backup path:', pathError.message);
-        return reject(new Error('Invalid backup path specified'));
-      }
-      
-      const scriptPath = getScriptPath('getBackupInfo.ps1');
-      
-      // Sanitize backup path for PowerShell execution  
-      const sanitizedBackupPath = sanitizeForShell(backupPath);
-      
-      const command = `powershell -NoProfile -ExecutionPolicy Bypass -File "${scriptPath}" -BackupLocation "${sanitizedBackupPath}"`;
-
-      log('[get-backup-info] Running command with sanitized path');
-      log('[get-backup-info] Using backup path:', sanitizedBackupPath);
-
-      exec(command, (error, stdout, stderr) => {
-        if (error) {
-          log('[get-backup-info] PowerShell exec error:', error);
-          return reject(error);
-        }
-
-        try {
-          const data = JSON.parse(stdout);
-          resolve(data);
-        } catch (parseError) {
-          log('[get-backup-info] JSON parse error:', parseError);
-          log('[stdout]', stdout);
-          reject(parseError);
-        }
-      });
-    } catch (pathError) {
-      log('[get-backup-info] Path error:', pathError);
-      reject(new Error(`Failed to get backup path: ${pathError.message}`));
+  try {
+    const result = await BackupUtils.executeWithBackupPath('getBackupInfo.ps1', 'get-backup-info');
+    return JSON.parse(result);
+  } catch (error) {
+    if (error.message.includes('JSON')) {
+      log('[get-backup-info] JSON parse error:', error);
+    } else {
+      log('[get-backup-info] Error:', error);
     }
-  });
+    throw error;
+  }
 });
 
 ipcMain.handle('open-backup-location', async () => {
-  return new Promise(async (resolve, reject) => {
-    try {
-      const backupLocation = await getCurrentBackupPath();
-      
-      // Create the directory if it doesn't exist
-        const fs = require('fs');
-      if (!fs.existsSync(backupLocation)) {
-        fs.mkdirSync(backupLocation, { recursive: true });
-      }
-      
-      // Open the backup location in Explorer
+  try {
+    const backupLocation = await BackupUtils.getCurrentBackupPath();
+    
+    // Create the directory if it doesn't exist
+    if (!fs.existsSync(backupLocation)) {
+      fs.mkdirSync(backupLocation, { recursive: true });
+    }
+    
+    // Open the backup location in Explorer
+    return new Promise((resolve, reject) => {
       exec(`start "" "${backupLocation}"`, (error) => {
         if (error) {
           log('[open-backup-location] Error opening explorer:', error);
-          return reject(new Error('Failed to open backup location'));
+          return reject(ValidationUtils.createError('Failed to open backup location', 'open-backup-location'));
         }
         resolve(`Opened backup location: ${backupLocation}`);
       });
-      
-    } catch (error) {
-      log('[open-backup-location] Error:', error);
-      reject(new Error('Failed to determine backup location'));
-    }
-  });
+    });
+  } catch (error) {
+    log('[open-backup-location] Error:', error);
+    throw error;
+  }
 });
 
 // Backup path selection handler
 ipcMain.handle('select-backup-path', async () => {
-  const { dialog } = require('electron');
-  
   const result = await dialog.showOpenDialog(mainWindow, {
     title: 'Select Backup Location',
     properties: ['openDirectory', 'createDirectory'],
@@ -483,7 +291,7 @@ ipcMain.handle('select-backup-path', async () => {
           if (error) {
             log('[select-backup-path] Registry command error:', error);
             log('[select-backup-path] stderr:', stderr);
-            return reject(new Error('Failed to save backup location'));
+            return reject(ValidationUtils.createError('Failed to save backup location', 'select-backup-path'));
           }
           
           log('[select-backup-path] Registry command success:', stdout);
@@ -493,65 +301,23 @@ ipcMain.handle('select-backup-path', async () => {
       });
     } catch (error) {
       log('[select-backup-path] Error:', error);
-      throw new Error('Failed to save backup location');
+      throw ValidationUtils.createError('Failed to save backup location', 'select-backup-path');
     }
   } else {
-    throw new Error('No folder selected');
+    throw ValidationUtils.createError('No folder selected', 'select-backup-path');
   }
 });
 
 // Get current backup path
 ipcMain.handle('get-backup-path', async () => {
-  return new Promise((resolve, reject) => {
-    // Use Windows reg command to query the registry (matches how we write it)
-    const regCommand = `reg query "HKCU\\Software\\PC-Buddy" /v BackupLocation 2>nul`;
-    
-    exec(regCommand, (error, stdout, stderr) => {
-      if (error) {
-        log('[get-backup-path] Registry query failed:', error);
-        // Fallback to JavaScript default
-        const os = require('os');
-        const path = require('path');
-        const defaultPath = path.join(os.homedir(), 'Documents', 'PC-Buddy-Backups');
-        log('[get-backup-path] Using JavaScript fallback:', defaultPath);
-        resolve(defaultPath);
-      } else {
-        log('[get-backup-path] Registry query stdout:', JSON.stringify(stdout));
-        
-        // Parse the reg query output - try multiple patterns
-        // Pattern 1: "    BackupLocation    REG_SZ    C:\path\here"
-        let match = stdout.match(/BackupLocation\s+REG_SZ\s+(.+?)(?:\s*$|\r|\n)/m);
-        
-        // Pattern 2: Try simpler pattern if first fails
-        if (!match) {
-          match = stdout.match(/REG_SZ\s+(.+?)(?:\s*$|\r|\n)/m);
-      }
-        
-        if (match && match[1] && match[1].trim()) {
-          const registryPath = match[1].trim();
-          log('[get-backup-path] Found registry path:', registryPath);
-          resolve(registryPath);
-        } else {
-          // No registry value found, use default
-          const os = require('os');
-          const path = require('path');
-          const defaultPath = path.join(os.homedir(), 'Documents', 'PC-Buddy-Backups');
-          log('[get-backup-path] No registry value found in output, using default:', defaultPath);
-          resolve(defaultPath);
-        }
-      }
-    });
-  });
+  return await BackupUtils.getCurrentBackupPath();
 });
 
 // Enhanced PowerShell command handler with security restrictions
 ipcMain.handle('run-powershell-command', async (event, command) => {
-  return new Promise((resolve, reject) => {
+  try {
     // Input validation
-    if (typeof command !== 'string' || command.length === 0 || command.length > 1000) {
-      log('[run-powershell-command] Invalid command length');
-      return reject(new Error('Invalid command format'));
-    }
+    ValidationUtils.validateStringInput(command, 1000, 'run-powershell-command');
     
     // Whitelist of allowed PowerShell commands for this application
     const allowedCommands = [
@@ -579,7 +345,7 @@ ipcMain.handle('run-powershell-command', async (event, command) => {
     
     if (!isAllowed) {
       log('[run-powershell-command] Command not in whitelist:', command);
-      return reject(new Error('Command not authorized for execution'));
+      throw ValidationUtils.createError('Command not authorized for execution', 'run-powershell-command');
     }
     
     // Additional security: Remove dangerous patterns even from whitelisted commands
@@ -597,23 +363,20 @@ ipcMain.handle('run-powershell-command', async (event, command) => {
     for (const pattern of dangerousPatterns) {
       if (pattern.test(command)) {
         log('[run-powershell-command] Dangerous pattern detected:', command);
-        return reject(new Error('Command contains prohibited patterns'));
+        throw ValidationUtils.createError('Command contains prohibited patterns', 'run-powershell-command');
       }
     }
     
-    // Sanitize the command
+    // Sanitize and execute the command
     const sanitizedCommand = sanitizeForShell(command);
-    
     log('[run-powershell-command] Executing whitelisted command');
     
-    exec(`powershell -NoProfile -ExecutionPolicy Bypass -Command "${sanitizedCommand}"`, (error, stdout, stderr) => {
-      if (error) {
-        log('[run-powershell-command] Error:', error);
-        return reject(new Error(stderr || error.message));
-      }
-      resolve(stdout.trim());
-    });
-  });
+    return await PowerShellUtils.executeCommand(sanitizedCommand);
+    
+  } catch (error) {
+    log('[run-powershell-command] Error:', error);
+    throw error;
+  }
 });
 
 // Open Explorer for file/folder selection (fixed command)
@@ -623,7 +386,7 @@ ipcMain.handle('open-file-explorer', async () => {
     exec('start explorer', (error) => {
       if (error) {
         log('[open-file-explorer] Error:', error);
-        return reject(new Error('Failed to open file explorer'));
+        return reject(ValidationUtils.createError('Failed to open file explorer', 'open-file-explorer'));
       }
       resolve('File explorer opened');
     });
@@ -632,8 +395,6 @@ ipcMain.handle('open-file-explorer', async () => {
 
 // File/Folder selection dialog for custom shortcuts
 ipcMain.handle('select-file-or-folder', async () => {
-  const { dialog } = require('electron');
-  
   const result = await dialog.showOpenDialog(mainWindow, {
     title: 'Select File or Folder for Shortcut',
     properties: ['openFile', 'openDirectory'],
@@ -645,7 +406,7 @@ ipcMain.handle('select-file-or-folder', async () => {
     log('[select-file-or-folder] User selected path:', selectedPath);
     return selectedPath;
   } else {
-    throw new Error('No file or folder selected');
+    throw ValidationUtils.createError('No file or folder selected', 'select-file-or-folder');
   }
 });
 
@@ -659,40 +420,39 @@ ipcMain.handle('delete-backup', async (event, backupFile) => {
       // Validate input parameters
       if (!backupFile || typeof backupFile !== 'string') {
         log('[delete-backup] Invalid backup file parameter:', backupFile);
-        return reject(new Error('Invalid backup file parameter'));
+        return reject(ValidationUtils.createError('Invalid backup file parameter', 'delete-backup'));
       }
 
-      const backupPath = await getCurrentBackupPath();
+      const backupPath = await BackupUtils.getCurrentBackupPath();
       log('[delete-backup] Using backup path:', backupPath);
       
       // Validate backup path for security
       try {
-        validatePath(backupPath);
+        ValidationUtils.validateAndSanitizePath(backupPath, 'delete-backup');
       } catch (pathError) {
         log('[delete-backup] Invalid backup path:', pathError.message);
-        return reject(new Error('Invalid backup path specified'));
+        return reject(ValidationUtils.createError('Invalid backup path specified', 'delete-backup'));
       }
       
       // Validate backup file name for security
       if (backupFile.includes('..') || backupFile.includes('/') || backupFile.includes('\\')) {
         log('[delete-backup] Invalid backup file name (path traversal attempt):', backupFile);
-        return reject(new Error('Invalid backup file name'));
+        return reject(ValidationUtils.createError('Invalid backup file name', 'delete-backup'));
       }
       
-      const fs = require('fs');
       const fullBackupPath = path.join(backupPath, backupFile);
       log('[delete-backup] Full backup path to delete:', fullBackupPath);
       
       // Additional security check - ensure file is in the backup directory
       if (!fullBackupPath.startsWith(backupPath)) {
         log('[delete-backup] Path traversal attempt blocked:', fullBackupPath);
-        return reject(new Error('Invalid backup file path'));
+        return reject(ValidationUtils.createError('Invalid backup file path', 'delete-backup'));
       }
       
       // Check if file/directory exists
       if (!fs.existsSync(fullBackupPath)) {
         log('[delete-backup] Backup file does not exist:', fullBackupPath);
-        return reject(new Error('Backup file does not exist'));
+        return reject(ValidationUtils.createError('Backup file does not exist', 'delete-backup'));
       }
       
       // Check if it's a directory or file and delete accordingly
@@ -701,7 +461,7 @@ ipcMain.handle('delete-backup', async (event, backupFile) => {
         stats = fs.statSync(fullBackupPath);
       } catch (statError) {
         log('[delete-backup] Error getting file stats:', statError);
-        return reject(new Error('Failed to access backup file'));
+        return reject(ValidationUtils.createError('Failed to access backup file', 'delete-backup'));
       }
       
       log('[delete-backup] File stats - isDirectory:', stats.isDirectory(), 'size:', stats.size);
@@ -735,7 +495,7 @@ ipcMain.handle('delete-backup', async (event, backupFile) => {
                 exec(rmCommand, { timeout: 60000 }, (rmError, rmStdout, rmStderr) => {
                   if (rmError) {
                     log('[delete-backup] UNC rmdir failed:', rmError);
-                    moveReject(new Error(`Failed to delete directory: ${moveError.message}`));
+                    moveReject(ValidationUtils.createError(`Failed to delete directory: ${moveError.message}`, 'delete-backup'));
                   } else {
                     log('[delete-backup] UNC rmdir succeeded');
                     moveResolve();
@@ -757,7 +517,7 @@ ipcMain.handle('delete-backup', async (event, backupFile) => {
                       moveResolve();
                     } catch (cleanupError) {
                       log('[delete-backup] Manual cleanup failed:', cleanupError);
-                      moveReject(new Error(`Directory moved but temp cleanup failed: ${delError.message}`));
+                      moveReject(ValidationUtils.createError(`Directory moved but temp cleanup failed: ${delError.message}`, 'delete-backup'));
                     }
                   } else {
                     log('[delete-backup] Temp directory deleted successfully');
@@ -791,28 +551,28 @@ ipcMain.handle('delete-backup', async (event, backupFile) => {
         
         // Provide more specific error messages
         if (deleteError.message.includes('timeout')) {
-          return reject(new Error('Cannot delete backup: operation timed out (backup may be very large)'));
+          return reject(ValidationUtils.createError('Cannot delete backup: operation timed out (backup may be very large)', 'delete-backup'));
         } else if (deleteError.message.includes('Access is denied')) {
-          return reject(new Error('Cannot delete backup: access denied. Try running PC Buddy as administrator.'));
+          return reject(ValidationUtils.createError('Cannot delete backup: access denied. Try running PC Buddy as administrator.', 'delete-backup'));
         } else if (deleteError.message.includes('cannot find')) {
-          return reject(new Error('Cannot delete backup: file not found'));
+          return reject(ValidationUtils.createError('Cannot delete backup: file not found', 'delete-backup'));
         } else if (deleteError.message.includes('path') && deleteError.message.includes('long')) {
-          return reject(new Error('Cannot delete backup: file paths are too long for Windows. Please delete manually.'));
+          return reject(ValidationUtils.createError('Cannot delete backup: file paths are too long for Windows. Please delete manually.', 'delete-backup'));
         } else if (deleteError.code === 'EBUSY') {
-          return reject(new Error('Cannot delete backup: file is currently in use'));
+          return reject(ValidationUtils.createError('Cannot delete backup: file is currently in use', 'delete-backup'));
         } else if (deleteError.code === 'EACCES') {
-          return reject(new Error('Cannot delete backup: access denied'));
+          return reject(ValidationUtils.createError('Cannot delete backup: access denied', 'delete-backup'));
         } else if (deleteError.code === 'ENOENT') {
-          return reject(new Error('Cannot delete backup: file not found'));
+          return reject(ValidationUtils.createError('Cannot delete backup: file not found', 'delete-backup'));
         } else {
-          return reject(new Error(`Failed to delete backup: ${deleteError.message}`));
+          return reject(ValidationUtils.createError(`Failed to delete backup: ${deleteError.message}`, 'delete-backup'));
         }
       }
       
     } catch (error) {
       const totalTime = Date.now() - startTime;
       log('[delete-backup] Unexpected error after', totalTime, 'ms:', error);
-      reject(new Error(`Failed to delete backup: ${error.message}`));
+      reject(ValidationUtils.createError(`Failed to delete backup: ${error.message}`, 'delete-backup'));
     }
   });
 });
@@ -844,3 +604,699 @@ ipcMain.handle('ensure-apps-on-top', async () => {
   }
   return false;
 });
+
+// ====================================
+// NETWORK API HANDLERS - BASIC WINDOWS COMMANDS ONLY
+// ====================================
+
+// Get comprehensive network information - SIMPLIFIED AND RELIABLE
+ipcMain.handle('get-network-info', async () => {
+  console.log('[IPC] get-network-info handler called');
+  return new Promise((resolve, reject) => {
+    try {
+      console.log('[IPC] Starting network info collection...');
+      const networkInfo = {};
+      let completedTasks = 0;
+      const totalTasks = 3;
+      
+      // 1. Get basic network interfaces (always works)
+      try {
+        const interfaces = os.networkInterfaces();
+        networkInfo.interfaces = interfaces;
+        
+        // Find primary interface
+        let primaryInterface = null;
+        for (const [name, addresses] of Object.entries(interfaces)) {
+          const ipv4Addr = addresses.find(addr => !addr.internal && addr.family === 'IPv4');
+          if (ipv4Addr) {
+            primaryInterface = { name, address: ipv4Addr.address };
+            break;
+          }
+        }
+        
+        networkInfo.localIPv4 = primaryInterface ? primaryInterface.address : 'Not available';
+        networkInfo.primaryInterface = primaryInterface ? primaryInterface.name : 'Not available';
+        networkInfo.hostname = os.hostname() || 'Unknown';
+      } catch (err) {
+        networkInfo.localIPv4 = 'Error';
+        networkInfo.primaryInterface = 'Error';
+        networkInfo.hostname = 'Error';
+      }
+      
+      // 2. Get DNS servers using basic ipconfig command
+      exec('ipconfig /all', { timeout: 5000 }, (error, stdout) => {
+        if (!error && stdout) {
+          try {
+            // Simple DNS server extraction
+            const lines = stdout.split('\n');
+            const dnsServers = [];
+            
+            for (const line of lines) {
+              if (line.includes('DNS Servers') && line.includes(':')) {
+                const serverMatch = line.match(/:\s*([0-9.]+)/);
+                if (serverMatch) {
+                  dnsServers.push(serverMatch[1]);
+                }
+              }
+            }
+            
+            networkInfo.dnsServers = dnsServers.length > 0 ? dnsServers : ['8.8.8.8', '1.1.1.1'];
+          } catch (parseErr) {
+            networkInfo.dnsServers = ['8.8.8.8', '1.1.1.1'];
+          }
+        } else {
+          networkInfo.dnsServers = ['8.8.8.8', '1.1.1.1'];
+        }
+        
+        completedTasks++;
+        if (completedTasks === totalTasks) resolve(networkInfo);
+      });
+      
+      // 3. Try to get public IP using simple PowerShell (optional, can fail)
+      exec('powershell -Command "try { (Invoke-RestMethod -Uri \'http://ipinfo.io/ip\' -TimeoutSec 5).Trim() } catch { \'Unable to retrieve\' }"', { timeout: 8000 }, (error, stdout) => {
+        if (!error && stdout && stdout.trim() && stdout.trim() !== 'Unable to retrieve') {
+          networkInfo.publicIPv4 = stdout.trim();
+        } else {
+          networkInfo.publicIPv4 = 'Unable to retrieve';
+        }
+        
+        completedTasks++;
+        if (completedTasks === totalTasks) resolve(networkInfo);
+      });
+      
+      // 4. Try to get ISP info (optional, can fail)
+      exec('powershell -Command "try { $info = Invoke-RestMethod -Uri \'http://ipinfo.io/json\' -TimeoutSec 5; \\"$($info.city), $($info.region), $($info.country)\\" + \\"||\\" + $info.org } catch { \'Unable to retrieve||Unable to retrieve\' }"', { timeout: 10000 }, (error, stdout) => {
+        if (!error && stdout && stdout.trim()) {
+          const [location, isp] = stdout.trim().split('||');
+          networkInfo.location = location || 'Unable to retrieve';
+          networkInfo.isp = isp || 'Unable to retrieve';
+        } else {
+          networkInfo.location = 'Unable to retrieve';
+          networkInfo.isp = 'Unable to retrieve';
+        }
+        
+        // Set defaults for other fields
+        networkInfo.publicIPv6 = 'Not available';
+        
+        completedTasks++;
+        if (completedTasks === totalTasks) resolve(networkInfo);
+      });
+      
+    } catch (error) {
+      console.error('[Network] Error in get-network-info:', error);
+      reject(new Error(`Failed to get network info: ${error.message}`));
+    }
+  });
+});
+
+// Network connectivity test - FIXED to use original ping approach
+ipcMain.handle('test-connectivity', async (event, target) => {
+  console.log('[IPC] test-connectivity handler called with target:', target);
+  return new Promise((resolve, reject) => {
+    try {
+      // Basic input validation
+      if (!target || typeof target !== 'string' || target.length > 255) {
+        return reject(ValidationUtils.createError('Invalid target address', 'test-connectivity'));
+      }
+      
+      // Simple sanitization for ping command
+      const sanitizedTarget = target.replace(/[^a-zA-Z0-9.-]/g, '');
+      if (!sanitizedTarget) {
+        return reject(ValidationUtils.createError('Invalid target address format', 'test-connectivity'));
+      }
+      
+      // Use basic ping command that works on all Windows PCs
+      const command = `ping -n 4 ${sanitizedTarget}`;
+      
+      exec(command, { timeout: 15000 }, (error, stdout, stderr) => {
+        const result = {
+          target: sanitizedTarget,
+          success: !error && !stdout.includes('could not find host'),
+          output: stdout + stderr,
+          timestamp: new Date().toISOString()
+        };
+        
+        // Parse basic ping statistics if successful
+        if (result.success && stdout) {
+          try {
+            const lossMatch = stdout.match(/\((\d+)% loss\)/);
+            const timeMatch = stdout.match(/Average = (\d+)ms/);
+            
+            result.packetLoss = lossMatch ? parseInt(lossMatch[1]) : 0;
+            result.averageTime = timeMatch ? parseInt(timeMatch[1]) : null;
+          } catch (parseErr) {
+            // Parsing failed, but that's okay
+          }
+        }
+        
+        resolve(result);
+      });
+      
+    } catch (error) {
+      reject(ValidationUtils.createError(`Failed to test connectivity: ${error.message}`, 'test-connectivity'));
+    }
+  });
+});
+
+// DNS lookup using basic nslookup command - FIXED to use original approach
+ipcMain.handle('dns-lookup', async (event, domain) => {
+  console.log('[IPC] dns-lookup handler called with domain:', domain);
+  return new Promise((resolve, reject) => {
+    try {
+      // Basic input validation
+      if (!domain || typeof domain !== 'string' || domain.length > 255) {
+        return reject(ValidationUtils.createError('Invalid domain name', 'dns-lookup'));
+      }
+      
+      // Simple sanitization for nslookup
+      const sanitizedDomain = domain.replace(/[^a-zA-Z0-9.-]/g, '');
+      if (!sanitizedDomain) {
+        return reject(ValidationUtils.createError('Invalid domain format', 'dns-lookup'));
+      }
+      
+      // Use basic nslookup command
+      const command = `nslookup ${sanitizedDomain}`;
+      
+      exec(command, { timeout: 10000 }, (error, stdout, stderr) => {
+        const result = {
+          domain: sanitizedDomain,
+          success: !error && !stdout.includes('can\'t find'),
+          output: stdout + stderr,
+          timestamp: new Date().toISOString(),
+          records: []
+        };
+        
+        // Parse DNS records if successful
+        if (result.success && stdout) {
+          try {
+            const lines = stdout.split('\n');
+            
+            for (const line of lines) {
+              const trimmedLine = line.trim();
+              
+              // Look for Name: records
+              if (trimmedLine.includes('Name:')) {
+                const nameMatch = trimmedLine.match(/Name:\s*(.+)/);
+                if (nameMatch) {
+                  result.records.push({
+                    type: 'Name',
+                    value: nameMatch[1].trim()
+                  });
+                }
+              }
+              
+              // Look for Address: records  
+              if (trimmedLine.includes('Address:') && !trimmedLine.includes('#')) {
+                const addressMatch = trimmedLine.match(/Address:\s*(.+)/);
+                if (addressMatch) {
+                  result.records.push({
+                    type: 'Address',
+                    value: addressMatch[1].trim()
+                  });
+                }
+              }
+            }
+          } catch (parseErr) {
+            // Parsing failed, but we still have the raw output
+          }
+        }
+        
+        resolve(result);
+      });
+      
+    } catch (error) {
+      reject(ValidationUtils.createError(`Failed to perform DNS lookup: ${error.message}`, 'dns-lookup'));
+    }
+  });
+});
+
+// Flush DNS cache - FIXED to not require admin
+ipcMain.handle('flush-dns', async () => {
+  console.log('[IPC] flush-dns handler called');
+  return new Promise((resolve, reject) => {
+    try {
+      // This command works on all Windows PCs without admin
+      const command = 'ipconfig /flushdns';
+      
+      exec(command, { timeout: 10000 }, (error, stdout, stderr) => {
+        if (error) {
+          reject(ValidationUtils.createError(`Failed to flush DNS cache: ${error.message}`, 'flush-dns'));
+        } else {
+          resolve({
+            success: true,
+            message: 'DNS cache cleared successfully',
+            output: stdout + stderr
+          });
+        }
+      });
+      
+    } catch (error) {
+      reject(ValidationUtils.createError(`Failed to flush DNS cache: ${error.message}`, 'flush-dns'));
+    }
+  });
+});
+
+// Renew IP configuration - FIXED to not require admin initially
+ipcMain.handle('renew-ip-config', async () => {
+  return new Promise((resolve, reject) => {
+    try {
+      // Use ipconfig /renew which works without admin on most systems
+      const command = 'ipconfig /renew';
+      
+      exec(command, { timeout: 20000 }, (error, stdout, stderr) => {
+        if (error) {
+          // If renew fails, try release and renew separately
+          exec('ipconfig /release', { timeout: 10000 }, (releaseError) => {
+            if (releaseError) {
+              reject(ValidationUtils.createError(`Failed to release/renew IP: ${releaseError.message}`, 'renew-ip-config'));
+            } else {
+              exec('ipconfig /renew', { timeout: 15000 }, (renewError, renewStdout, renewStderr) => {
+                if (renewError) {
+                  reject(ValidationUtils.createError(`Failed to renew IP: ${renewError.message}`, 'renew-ip-config'));
+                } else {
+                  resolve({
+                    success: true,
+                    message: 'IP address renewed successfully',
+                    output: renewStdout + renewStderr
+                  });
+                }
+              });
+            }
+          });
+        } else {
+          resolve({
+            success: true,
+            message: 'IP address renewed successfully',
+            output: stdout + stderr
+          });
+        }
+      });
+      
+    } catch (error) {
+      reject(ValidationUtils.createError(`Failed to renew IP configuration: ${error.message}`, 'renew-ip-config'));
+    }
+  });
+});
+
+// Trace route using basic tracert - FIXED to use original approach
+ipcMain.handle('trace-route', async (event, target) => {
+  return new Promise((resolve, reject) => {
+    try {
+      // Basic input validation
+      if (!target || typeof target !== 'string' || target.length > 255) {
+        return reject(ValidationUtils.createError('Invalid target address', 'trace-route'));
+      }
+      
+      // Simple sanitization
+      const sanitizedTarget = target.replace(/[^a-zA-Z0-9.-]/g, '');
+      if (!sanitizedTarget) {
+        return reject(ValidationUtils.createError('Invalid target format', 'trace-route'));
+      }
+      
+      // Use basic tracert command with limited hops
+      const command = `tracert -h 15 ${sanitizedTarget}`;
+      
+      exec(command, { timeout: 45000 }, (error, stdout, stderr) => {
+        const result = {
+          target: sanitizedTarget,
+          success: !error,
+          output: stdout + stderr,
+          timestamp: new Date().toISOString(),
+          hops: []
+        };
+        
+        // Parse trace route hops
+        if (stdout) {
+          try {
+            const lines = stdout.split('\n');
+            for (const line of lines) {
+              const hopMatch = line.match(/^\s*(\d+)\s+(.+)/);
+              if (hopMatch && hopMatch[1] && hopMatch[2]) {
+                result.hops.push({
+                  hop: parseInt(hopMatch[1]),
+                  details: hopMatch[2].trim()
+                });
+              }
+            }
+          } catch (parseErr) {
+            // Parsing failed, but we have the raw output
+          }
+        }
+        
+        resolve(result);
+      });
+      
+    } catch (error) {
+      reject(ValidationUtils.createError(`Failed to trace route: ${error.message}`, 'trace-route'));
+    }
+  });
+});
+
+// Simple ping to specific host - FIXED to use original approach
+ipcMain.handle('ping-host', async (event, host) => {
+  return new Promise((resolve, reject) => {
+    try {
+      // Basic validation
+      if (!host || typeof host !== 'string' || host.length > 255) {
+        return reject(ValidationUtils.createError('Invalid host address', 'ping-host'));
+      }
+      
+      // Simple sanitization
+      const sanitizedHost = host.replace(/[^a-zA-Z0-9.-]/g, '');
+      if (!sanitizedHost) {
+        return reject(ValidationUtils.createError('Invalid host format', 'ping-host'));
+      }
+      
+      // Single ping
+      const command = `ping -n 1 ${sanitizedHost}`;
+      
+      exec(command, { timeout: 8000 }, (error, stdout, stderr) => {
+        resolve({
+          host: sanitizedHost,
+          success: !error && !stdout.includes('could not find host'),
+          output: stdout + stderr,
+          timestamp: new Date().toISOString()
+        });
+      });
+      
+    } catch (error) {
+      reject(ValidationUtils.createError(`Failed to ping host: ${error.message}`, 'ping-host'));
+    }
+  });
+});
+
+// Get network adapters - Enhanced to show ALL adapters including disconnected ones
+ipcMain.handle('get-network-adapters', async () => {
+  return new Promise((resolve, reject) => {
+    try {
+      // Use netsh to get ALL network adapters (including disconnected ones)
+      const command = 'netsh interface show interface';
+      
+      exec(command, (error, stdout, stderr) => {
+        if (error) {
+          console.error('[get-network-adapters] netsh command failed, falling back to Node.js method:', error);
+          // Fallback to Node.js method
+          try {
+            const interfaces = os.networkInterfaces();
+            const adapters = [];
+            
+            for (const [name, addresses] of Object.entries(interfaces)) {
+              // Skip loopback interfaces
+              if (name.toLowerCase().includes('loopback') || name.toLowerCase().includes('pseudo')) {
+                continue;
+              }
+              
+              const adapter = {
+                name,
+                addresses: addresses.map(addr => ({
+                  address: addr.address,
+                  family: addr.family,
+                  internal: addr.internal,
+                  mac: addr.mac || 'Unknown'
+                })),
+                status: 'Connected' // Node.js only shows connected interfaces
+              };
+              adapters.push(adapter);
+            }
+            
+            resolve(adapters);
+          } catch (fallbackError) {
+            reject(new Error(`Failed to get network adapters: ${fallbackError.message}`));
+          }
+          return;
+        }
+        
+        try {
+          // Parse netsh output to get interface names and states
+          const lines = stdout.split('\n').slice(3); // Skip header lines
+          const netshAdapters = [];
+          
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed) continue;
+            
+            // Parse netsh output format: Admin State   Connect State   Type         Interface Name
+            const parts = trimmed.split(/\s{2,}/); // Split on 2+ spaces
+            if (parts.length >= 4) {
+              const adminState = parts[0];
+              const connectState = parts[1];
+              const type = parts[2];
+              const interfaceName = parts[3];
+              
+              // Skip loopback and other system interfaces
+              if (interfaceName.toLowerCase().includes('loopback') || 
+                  interfaceName.toLowerCase().includes('pseudo') ||
+                  interfaceName.toLowerCase().includes('teredo') ||
+                  interfaceName.toLowerCase().includes('isatap')) {
+                continue;
+              }
+              
+              netshAdapters.push({
+                name: interfaceName,
+                adminState,
+                connectState,
+                type,
+                isConnected: connectState.toLowerCase() === 'connected'
+              });
+            }
+          }
+          
+          // Now get IP addresses for connected adapters from Node.js
+          const nodeInterfaces = os.networkInterfaces();
+          const adapters = [];
+          
+          for (const netshAdapter of netshAdapters) {
+            let addresses = [];
+            let status = 'Disconnected';
+            
+            if (netshAdapter.isConnected && nodeInterfaces[netshAdapter.name]) {
+              addresses = nodeInterfaces[netshAdapter.name].map(addr => ({
+                address: addr.address,
+                family: addr.family,
+                internal: addr.internal,
+                mac: addr.mac || 'Unknown'
+              }));
+              status = 'Connected';
+            } else if (netshAdapter.adminState.toLowerCase() === 'disabled') {
+              status = 'Disabled';
+            }
+            
+            adapters.push({
+              name: netshAdapter.name,
+              addresses,
+              status,
+              type: netshAdapter.type,
+              adminState: netshAdapter.adminState,
+              connectState: netshAdapter.connectState
+            });
+          }
+          
+          console.log(`[get-network-adapters] Found ${adapters.length} adapters (including disconnected)`);
+          resolve(adapters);
+          
+        } catch (parseError) {
+          console.error('[get-network-adapters] Failed to parse netsh output:', parseError);
+          // Fallback to Node.js method
+          try {
+            const interfaces = os.networkInterfaces();
+            const adapters = [];
+            
+            for (const [name, addresses] of Object.entries(interfaces)) {
+              // Skip loopback interfaces
+              if (name.toLowerCase().includes('loopback') || name.toLowerCase().includes('pseudo')) {
+                continue;
+              }
+              
+              const adapter = {
+                name,
+                addresses: addresses.map(addr => ({
+                  address: addr.address,
+                  family: addr.family,
+                  internal: addr.internal,
+                  mac: addr.mac || 'Unknown'
+                })),
+                status: 'Connected' // Node.js only shows connected interfaces
+              };
+              adapters.push(adapter);
+            }
+            
+            resolve(adapters);
+          } catch (fallbackError) {
+            reject(new Error(`Failed to get network adapters: ${fallbackError.message}`));
+          }
+        }
+      });
+      
+    } catch (error) {
+      reject(new Error(`Failed to get network adapters: ${error.message}`));
+    }
+  });
+});
+
+// ====================================
+// SYSTEM INFO AND ELECTRON API HANDLERS
+// ====================================
+
+// Get system information
+ipcMain.handle('get-system-info', async () => {
+  return {
+    platform: os.platform(),
+    arch: os.arch(),
+    release: os.release(),
+    hostname: os.hostname(),
+    totalMemory: os.totalmem(),
+    freeMemory: os.freemem(),
+    cpus: os.cpus(),
+    uptime: os.uptime()
+  };
+});
+
+// Get app version
+ipcMain.handle('get-app-version', async () => {
+  return app.getVersion();
+});
+
+// Open file with default application
+ipcMain.handle('open-file', async (event, filePath) => {
+  try {
+    await shell.openPath(filePath);
+    return true;
+  } catch (error) {
+    throw new Error(`Failed to open file: ${error.message}`);
+  }
+});
+
+// Open URL in default browser
+ipcMain.handle('open-url', async (event, url) => {
+  try {
+    await shell.openExternal(url);
+    return true;
+  } catch (error) {
+    throw new Error(`Failed to open URL: ${error.message}`);
+  }
+});
+
+// Execute command
+ipcMain.handle('exec-command', async (event, command) => {
+  return new Promise((resolve, reject) => {
+    exec(command, (error, stdout, stderr) => {
+      if (error) {
+        reject(new Error(`Command failed: ${error.message}`));
+      } else {
+        resolve({ stdout, stderr });
+      }
+    });
+  });
+});
+
+// Open path in file explorer
+ipcMain.handle('open-path', async (event, path) => {
+  try {
+    
+    // For folders and files, use enhanced explorer commands to ensure they open on top
+    if (fs.existsSync(path)) {
+      const stats = fs.statSync(path);
+      
+      if (stats.isDirectory()) {
+        // For directories, use multiple commands to ensure window comes to front
+        return new Promise((resolve, reject) => {
+          // Use PowerShell to force window to foreground after opening
+          const command = `powershell -Command "& { Start-Process explorer.exe -ArgumentList '${path}' -WindowStyle Normal; Start-Sleep -Milliseconds 500; Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class Win32 { [DllImport(\\"user32.dll\\")] public static extern bool SetForegroundWindow(IntPtr hWnd); [DllImport(\\"user32.dll\\")] public static extern IntPtr FindWindow(string lpClassName, string lpWindowName); }'; $explorerWindow = [Win32]::FindWindow('CabinetWClass', $null); if ($explorerWindow -ne [IntPtr]::Zero) { [Win32]::SetForegroundWindow($explorerWindow) } }"`;
+          
+          exec(command, (error, stdout, stderr) => {
+            if (error) {
+              console.error('PowerShell explorer command failed, trying cmd alternative:', error);
+              // Try simpler cmd alternative
+              exec(`cmd /c start "" explorer.exe "${path}" && timeout /t 1 /nobreak > nul && powershell -Command "[void][System.Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms'); [System.Windows.Forms.Application]::SetSuspendState('False', 'False', 'False')"`, (altError, altStdout, altStderr) => {
+                if (altError) {
+                  console.error('Alternative command failed, falling back to shell.openPath:', altError);
+                  shell.openPath(path).then(() => resolve(true)).catch(reject);
+                } else {
+                  resolve(true);
+                }
+              });
+            } else {
+              resolve(true);
+            }
+          });
+        });
+      } else {
+        // For files, use enhanced select command to highlight and bring to front
+        return new Promise((resolve, reject) => {
+          const command = `powershell -Command "& { Start-Process explorer.exe -ArgumentList '/select,\\"${path}\\"' -WindowStyle Normal; Start-Sleep -Milliseconds 500; Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class Win32 { [DllImport(\\"user32.dll\\")] public static extern bool SetForegroundWindow(IntPtr hWnd); [DllImport(\\"user32.dll\\")] public static extern IntPtr FindWindow(string lpClassName, string lpWindowName); }'; $explorerWindow = [Win32]::FindWindow('CabinetWClass', $null); if ($explorerWindow -ne [IntPtr]::Zero) { [Win32]::SetForegroundWindow($explorerWindow) } }"`;
+          
+          exec(command, (error, stdout, stderr) => {
+            if (error) {
+              console.error('PowerShell explorer select failed, trying cmd alternative:', error);
+              // Try alternative
+              exec(`cmd /c start "" explorer.exe /select,"${path}" && timeout /t 1 /nobreak > nul`, (altError, altStdout, altStderr) => {
+                if (altError) {
+                  console.error('Alternative select failed, falling back to shell.openPath:', altError);
+                  shell.openPath(path).then(() => resolve(true)).catch(reject);
+                } else {
+                  resolve(true);
+                }
+              });
+            } else {
+              resolve(true);
+            }
+          });
+        });
+      }
+    } else {
+      // For non-existent paths, try to open them with start command first
+      return new Promise((resolve, reject) => {
+        exec(`powershell -Command "Start-Process '${path}' -WindowStyle Normal"`, (error, stdout, stderr) => {
+          if (error) {
+            console.error('PowerShell start command failed, falling back to shell.openPath:', error);
+            shell.openPath(path).then(() => resolve(true)).catch(reject);
+          } else {
+            resolve(true);
+          }
+        });
+      });
+    }
+  } catch (error) {
+    throw new Error(`Failed to open path: ${error.message}`);
+  }
+});
+
+// Show notification
+ipcMain.handle('show-notification', async (event, options) => {
+  try {
+    if (Notification.isSupported()) {
+      new Notification(options).show();
+      return true;
+    }
+    return false;
+  } catch (error) {
+    throw new Error(`Failed to show notification: ${error.message}`);
+  }
+});
+
+ipcMain.on('open-task-manager', () => {
+  exec('start taskmgr.exe /0 /startup', (error) => {
+    if (error) log('Failed to open Task Manager:', error);
+  });
+});
+
+// Reset network stack - REQUIRES ADMIN, with clear warning
+ipcMain.handle('reset-network-stack', async () => {
+  try {
+    const commands = [
+      'netsh winsock reset',
+      'netsh int ip reset',
+      'ipconfig /flushdns',
+      'netsh interface ip delete arpcache'
+    ];
+    
+    for (const command of commands) {
+      await SystemUtils.executeSudoCommand(command, 'reset-network-stack');
+    }
+    
+    return 'Network stack reset successfully. Please restart your computer for changes to take effect.';
+  } catch (error) {
+    throw ValidationUtils.createError('Failed to reset network stack', 'reset-network-stack');
+  }
+});
+

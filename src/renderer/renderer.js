@@ -1058,6 +1058,36 @@ window.addEventListener('DOMContentLoaded', async () => {
   // Initialize Masonry Layout
   // -------------------------
   
+  // Load network information
+  try {
+    console.log('[Network] Starting network info load...');
+    await refreshNetworkInfo();
+    markComponentLoaded('networkInfo');
+  } catch (error) {
+    console.error('Failed to load network information:', error);
+    const networkInfoGrid = document.getElementById('networkInfoGrid');
+    if (networkInfoGrid) {
+      networkInfoGrid.innerHTML = '<div class="error-message">Failed to load network information</div>';
+    }
+    // Still mark as loaded even on error to prevent hanging
+    markComponentLoaded('networkInfo');
+  }
+  
+  // Load network adapters
+  try {
+    console.log('[Network] Starting network adapters load...');
+    await refreshNetworkAdapters();
+    markComponentLoaded('networkAdapters');
+  } catch (error) {
+    console.error('Failed to load network adapters:', error);
+    const networkAdaptersGrid = document.getElementById('networkAdaptersGrid');
+    if (networkAdaptersGrid) {
+      networkAdaptersGrid.innerHTML = '<div class="error-message">Failed to load network adapters</div>';
+    }
+    // Still mark as loaded even on error to prevent hanging
+    markComponentLoaded('networkAdapters');
+  }
+  
   // Initialize masonry layout
   initMasonryLayout();
   
@@ -2242,12 +2272,6 @@ function openCustomShortcut(path) {
     
     promise.then(() => {
       console.log('[customShortcut] URL opened successfully');
-      // Ensure apps open on top
-      setTimeout(() => {
-        if (window.systemAPI?.ensureAppsOnTop) {
-          window.systemAPI.ensureAppsOnTop().catch(console.error);
-        }
-      }, 200);
     }).catch(error => {
       console.error('[customShortcut] Failed to open URL:', error);
       alert('Failed to open URL. Please check the URL format.');
@@ -2260,12 +2284,6 @@ function openCustomShortcut(path) {
     
     promise.then(() => {
       console.log('[customShortcut] Path opened successfully');
-      // Ensure apps open on top
-      setTimeout(() => {
-        if (window.systemAPI?.ensureAppsOnTop) {
-          window.systemAPI.ensureAppsOnTop().catch(console.error);
-        }
-      }, 200);
     }).catch(error => {
       console.error('[customShortcut] Failed to open path:', error);
       alert('Failed to open shortcut. Please check the path format.');
@@ -2459,6 +2477,8 @@ let componentsLoaded = {
   startupPrograms: false,
   backupInfo: false,
   diskUsage: false,
+  networkInfo: false,
+  networkAdapters: false,
   settingsInitialized: false,
   masonryInitialized: false
 };
@@ -2466,6 +2486,15 @@ let componentsLoaded = {
 let loadingTimeout = null;
 let minimumLoadingTime = 5000; // Minimum 5 seconds loading time
 let loadingStartTime = Date.now();
+
+function markComponentLoaded(component) {
+  console.log(`[Loading] Component loaded: ${component}`);
+  componentsLoaded[component] = true;
+  
+  // Use immediate execution to avoid pause when minimized
+  updateLoadingProgress();
+  checkAllComponentsLoaded();
+}
 
 function checkAllComponentsLoaded() {
   const allLoaded = Object.values(componentsLoaded).every(loaded => loaded);
@@ -2495,26 +2524,30 @@ function checkAllComponentsLoaded() {
     const progressDots = document.querySelectorAll('.progress-dots .dot');
     progressDots.forEach(dot => dot.classList.add('active'));
     
-    // Wait for minimum loading time plus additional delay for smooth UX
-    setTimeout(() => {
-      console.log('[Loading] Hiding loading screen');
+    // Use immediate execution when possible, fallback to setTimeout for delay
+    if (remainingTime <= 0) {
+      // Hide immediately if minimum time has passed
+      console.log('[Loading] Hiding loading screen immediately');
       loadingScreen.classList.add('hidden');
       setTimeout(() => {
         loadingScreen.style.display = 'none';
       }, 500); // Wait for fade animation
-    }, remainingTime + 2000); // Extra 2s after minimum time for "Ready!" message
+    } else {
+      // Wait for minimum loading time, but check periodically if minimized
+      let waitTime = 0;
+      const checkInterval = setInterval(() => {
+        waitTime += 100;
+        if (waitTime >= remainingTime + 2000) { // Extra 2s after minimum time
+          clearInterval(checkInterval);
+          console.log('[Loading] Hiding loading screen after minimum wait');
+          loadingScreen.classList.add('hidden');
+          setTimeout(() => {
+            loadingScreen.style.display = 'none';
+          }, 500); // Wait for fade animation
+        }
+      }, 100); // Check every 100ms instead of single setTimeout
+    }
   }
-}
-
-function markComponentLoaded(component) {
-  console.log(`[Loading] Component loaded: ${component}`);
-  componentsLoaded[component] = true;
-  
-  // Add delay for each component to spread loading out
-  setTimeout(() => {
-  updateLoadingProgress();
-  checkAllComponentsLoaded();
-  }, 500); // 500ms delay between each component load
 }
 
 function updateLoadingProgress() {
@@ -2533,17 +2566,21 @@ function updateLoadingProgress() {
   if (loadingText) {
     if (percentage === 0) {
       loadingText.textContent = 'Initializing application...';
-    } else if (percentage < 20) {
+    } else if (percentage < 15) {
       loadingText.textContent = 'Loading system information...';
-    } else if (percentage < 40) {
+    } else if (percentage < 25) {
       loadingText.textContent = 'Loading startup programs...';
-    } else if (percentage < 60) {
+    } else if (percentage < 35) {
       loadingText.textContent = 'Loading backup information...';
-    } else if (percentage < 80) {
+    } else if (percentage < 50) {
       loadingText.textContent = 'Analyzing disk usage...';
-    } else if (percentage < 90) {
+    } else if (percentage < 65) {
+      loadingText.textContent = 'Loading network information...';
+    } else if (percentage < 75) {
+      loadingText.textContent = 'Loading network adapters...';
+    } else if (percentage < 85) {
       loadingText.textContent = 'Initializing settings...';
-    } else if (percentage < 100) {
+    } else if (percentage < 95) {
       loadingText.textContent = 'Finalizing interface...';
     } else {
       loadingText.textContent = 'Ready!';
@@ -2567,3 +2604,1127 @@ function updateLoadingProgress() {
 document.addEventListener('DOMContentLoaded', () => {
   loadCustomShortcuts();
 });
+
+// ====================================
+// NETWORK PAGE FUNCTIONALITY
+// ====================================
+
+// Global network data storage
+let currentNetworkInfo = null;
+let lastConnectivityResult = null;
+
+// Helper function to get user-friendly adapter name and type (moved to global scope)
+function getAdapterInfo(adapter) {
+  const name = adapter.name.toLowerCase();
+  
+  console.log('🔍 [getAdapterInfo] Analyzing adapter:', adapter.name, 'addresses:', adapter.addresses.length);
+  
+  // Determine adapter type and friendly name with more flexible detection
+  if (name.includes('loopback') || name.includes('pseudo')) {
+    console.log('🔍 [getAdapterInfo] Detected as: System (Loopback)');
+    return { 
+      friendlyName: 'Loopback Interface', 
+      type: 'System', 
+      icon: '🔄',
+      description: 'Internal system interface'
+    };
+  } 
+  
+  // Enhanced Wi-Fi detection - check for common patterns
+  else if (name.includes('wi-fi') || name.includes('wireless') || name.includes('wifi') || 
+           name.includes('wlan') || name.includes('802.11') || name.includes('rz616') ||
+           name.includes('wifi 6e') || name.includes('wireless lan')) {
+    console.log('🔍 [getAdapterInfo] Detected as: Wireless (Wi-Fi)');
+    return { 
+      friendlyName: 'Wi-Fi Adapter', 
+      type: 'Wireless', 
+      icon: '📶',
+      description: 'Wireless network connection'
+    };
+  } 
+  
+  // Enhanced Ethernet detection - check for common patterns and your specific adapter
+  else if (name.includes('ethernet') || name.includes('local area connection') || 
+           name.includes('lan') || name.includes('realtek') || name.includes('intel') ||
+           name.includes('broadcom') || name.includes('marvell') || name.includes('killer') ||
+           name.includes('gaming') || name.includes('2.5gbe') || name.includes('gigabit') ||
+           name.includes('realtek gaming') || name.includes('family controller')) {
+    console.log('🔍 [getAdapterInfo] Detected as: Wired (Ethernet)');
+    return { 
+      friendlyName: 'Ethernet Adapter', 
+      type: 'Wired', 
+      icon: '🌐',
+      description: 'Wired network connection'
+    };
+  } 
+  
+  else if (name.includes('bluetooth') || name.includes('bt') || name.includes('personal area network')) {
+    console.log('🔍 [getAdapterInfo] Detected as: Bluetooth');
+    return { 
+      friendlyName: 'Bluetooth Adapter', 
+      type: 'Bluetooth', 
+      icon: '🔵',
+      description: 'Bluetooth network interface'
+    };
+  } 
+  
+  else if (name.includes('teredo') || name.includes('6to4') || name.includes('isatap')) {
+    console.log('🔍 [getAdapterInfo] Detected as: Virtual (IPv6 Tunnel)');
+    return { 
+      friendlyName: 'IPv6 Tunnel', 
+      type: 'Virtual', 
+      icon: '🌉',
+      description: 'IPv6 tunneling interface'
+    };
+  } 
+  
+  else if (name.includes('vmware') || name.includes('virtualbox') || name.includes('hyper-v') ||
+           name.includes('virtual') || name.includes('microsoft wi-fi direct')) {
+    console.log('🔍 [getAdapterInfo] Detected as: Virtual (VM/Direct)');
+    return { 
+      friendlyName: 'Virtual Machine Network', 
+      type: 'Virtual', 
+      icon: '💻',
+      description: 'Virtual machine network adapter'
+    };
+  } 
+  
+  else if (name.includes('vpn') || name.includes('tap') || name.includes('tun') ||
+           name.includes('openvpn') || name.includes('nordvpn')) {
+    console.log('🔍 [getAdapterInfo] Detected as: VPN');
+    return { 
+      friendlyName: 'VPN Adapter', 
+      type: 'VPN', 
+      icon: '🔒',
+      description: 'VPN network interface'
+    };
+  } 
+  
+  else {
+    // Try to guess if it's a physical adapter based on common patterns
+    if (name.includes('adapter') || name.includes('nic') || name.includes('card') ||
+        name.includes('connection') || /^[a-z]+ \d+$/.test(name)) {
+      console.log('🔍 [getAdapterInfo] Detected as: Physical (Generic)');
+      return { 
+        friendlyName: 'Network Adapter', 
+        type: 'Physical', 
+        icon: '🔗',
+        description: 'Network interface'
+      };
+    }
+    console.log('🔍 [getAdapterInfo] Detected as: Other (Unknown)');
+    return { 
+      friendlyName: 'Unknown Network Interface', 
+      type: 'Other', 
+      icon: '❓',
+      description: 'Unrecognized network interface'
+    };
+  }
+}
+
+// Helper function to check if network API is available
+function isNetworkAPIAvailable() {
+  if (!window.networkAPI) {
+    console.error('[Network] networkAPI is not available on window object');
+    showNotification('❌ Network functionality is not available. Please restart the application.', 'error');
+    return false;
+  }
+  return true;
+}
+
+// Refresh network information
+async function refreshNetworkInfo() {
+  console.log('[Network] refreshNetworkInfo called');
+  
+  if (!isNetworkAPIAvailable()) return;
+  
+  const networkInfoGrid = document.getElementById('networkInfoGrid');
+  const refreshBtn = document.querySelector('#networkInfoCard .tool-btn.secondary');
+  
+  if (!networkInfoGrid) {
+    console.log('[Network] No networkInfoGrid found, exiting');
+    return;
+  }
+  
+  // Show loading state
+  if (refreshBtn) {
+    refreshBtn.disabled = true;
+    refreshBtn.innerHTML = '<span class="btn-icon">🔄</span> Loading...';
+  }
+  
+  networkInfoGrid.innerHTML = '<div class="loading-message">🔄 Loading network information...</div>';
+  
+  try {
+    console.log('[Network] About to call getNetworkInfo...');
+    const networkInfo = await window.networkAPI.getNetworkInfo();
+    console.log('[Network] Network info received:', networkInfo);
+    
+    currentNetworkInfo = networkInfo;
+    
+    // Build info grid HTML
+    let infoHtml = '';
+    
+    // Basic network information
+    if (networkInfo.hostname) {
+      infoHtml += `<div class="system-info-item" data-type="hostname">
+        <div class="system-info-header">
+          <span class="system-info-icon">💻</span>
+          <span class="system-info-label">Computer Name</span>
+        </div>
+        <div class="system-info-value">${networkInfo.hostname}</div>
+      </div>`;
+    }
+    
+    if (networkInfo.localIPv4) {
+      infoHtml += `<div class="system-info-item" data-type="local-ip">
+        <div class="system-info-header">
+          <span class="system-info-icon">🏠</span>
+          <span class="system-info-label">Local IP Address</span>
+        </div>
+        <div class="system-info-value">${networkInfo.localIPv4}</div>
+      </div>`;
+    }
+    
+    if (networkInfo.publicIPv4) {
+      infoHtml += `<div class="system-info-item" data-type="public-ip">
+        <div class="system-info-header">
+          <span class="system-info-icon">🌐</span>
+          <span class="system-info-label">Public IP Address</span>
+        </div>
+        <div class="system-info-value">${networkInfo.publicIPv4}</div>
+      </div>`;
+    }
+    
+    if (networkInfo.dnsServers && networkInfo.dnsServers.length > 0) {
+      // Show primary DNS server
+      if (networkInfo.dnsServers[0]) {
+        infoHtml += `<div class="system-info-item" data-type="primary-dns">
+          <div class="system-info-header">
+            <span class="system-info-icon">🔍</span>
+            <span class="system-info-label">Primary DNS Server</span>
+          </div>
+          <div class="system-info-value">${networkInfo.dnsServers[0]}</div>
+        </div>`;
+      }
+      
+      // Show secondary DNS server if available
+      if (networkInfo.dnsServers[1]) {
+        infoHtml += `<div class="system-info-item" data-type="secondary-dns">
+          <div class="system-info-header">
+            <span class="system-info-icon">🔍</span>
+            <span class="system-info-label">Secondary DNS Server</span>
+          </div>
+          <div class="system-info-value">${networkInfo.dnsServers[1]}</div>
+        </div>`;
+      }
+    }
+    
+    if (networkInfo.location && networkInfo.location !== 'Unable to retrieve') {
+      infoHtml += `<div class="network-info-item">
+        <div class="network-info-header">
+          <span class="network-info-icon">📍</span>
+          <span class="network-info-label">Location</span>
+        </div>
+        <div class="network-info-value">${networkInfo.location}</div>
+      </div>`;
+    }
+    
+    if (networkInfo.isp && networkInfo.isp !== 'Unable to retrieve') {
+      infoHtml += `<div class="network-info-item">
+        <div class="network-info-header">
+          <span class="network-info-icon">🏢</span>
+          <span class="network-info-label">Internet Provider</span>
+        </div>
+        <div class="network-info-value">${networkInfo.isp}</div>
+      </div>`;
+    }
+    
+    if (!infoHtml) {
+      infoHtml = '<div class="network-info-item"><div class="network-info-label">No network information available</div></div>';
+    }
+    
+    networkInfoGrid.innerHTML = infoHtml;
+    console.log('[Network] Network info displayed successfully');
+    
+  } catch (error) {
+    console.error('[Network] Error getting network info:', error);
+    networkInfoGrid.innerHTML = `<div class="error-message">❌ Unable to Load Network Information<br><br>Error: ${error.message}</div>`;
+  }
+  
+  // Reset button state
+  if (refreshBtn) {
+    refreshBtn.disabled = false;
+    refreshBtn.innerHTML = '<span class="btn-icon">🔄</span> Refresh My Network Info';
+  }
+}
+
+// Test connectivity to a target
+async function testConnectivity() {
+  console.log('[Network] testConnectivity called');
+  
+  if (!isNetworkAPIAvailable()) return;
+  
+  const targetInput = document.getElementById('connectivityTarget');
+  const resultsContainer = document.getElementById('connectivityResults');
+  const statusDiv = document.getElementById('connectivityStatus');
+  const detailsDiv = document.getElementById('connectivityDetails');
+  const advancedBtn = document.getElementById('advancedTraceBtn');
+  const traceResults = document.getElementById('traceResults');
+  
+  if (!targetInput) {
+    showNotification('❌ Cannot find connectivity input field', 'error');
+    return;
+  }
+  
+  const target = targetInput.value.trim();
+  
+  console.log('[Network] Target:', target);
+  
+  if (!target) {
+    showNotification('Please enter a website name or IP address to test (like google.com or 8.8.8.8).', 'error');
+    return;
+  }
+  
+  // Show loading state
+  if (statusDiv) statusDiv.innerHTML = '<div class="connectivity-status">🔄<br>Testing...</div>';
+  if (resultsContainer) resultsContainer.style.display = 'none'; // Hide results container initially
+  if (detailsDiv) detailsDiv.innerHTML = '';
+  if (advancedBtn) advancedBtn.style.display = 'none';
+  if (traceResults) {
+    traceResults.innerHTML = '';
+    traceResults.style.display = 'none'; // Hide trace results from previous tests
+  }
+  
+  // Show loading message and start progress animation
+  const loadingMessage = document.querySelector('#connectivityTestCard .loadingMessage');
+  const progressFill = document.getElementById('connectionProgressFill');
+  const progressText = document.getElementById('connectionProgressText');
+  
+  if (loadingMessage) loadingMessage.style.display = 'block';
+  
+  // Animate progress bar
+  let progress = 0;
+  const progressInterval = setInterval(() => {
+    progress += Math.random() * 15 + 5; // Increment by 5-20%
+    if (progress > 90) progress = 90; // Cap at 90% until completion
+    
+    if (progressFill) progressFill.style.width = `${progress}%`;
+    if (progressText) progressText.textContent = `${Math.round(progress)}%`;
+  }, 500);
+  
+  try {
+    console.log('[Network] About to test connectivity...');
+    const result = await window.networkAPI.testConnectivity(target);
+    console.log('[Network] Connectivity test result:', result);
+    
+    lastConnectivityResult = result;
+    
+    // Display results
+    if (result.success) {
+      if (statusDiv) statusDiv.innerHTML = '<div class="connectivity-status success">✅ Connection Successful</div>';
+      if (resultsContainer) resultsContainer.style.display = 'block'; // Show results container
+      
+      let detailsHtml = `<div style="text-align: center; margin-bottom: 15px;">
+        <strong style="color: var(--success-color); font-size: 1.1em;">✅ Successfully connected to ${result.target}</strong>
+      </div>`;
+      
+      detailsHtml += `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; text-align: center;">`;
+      
+      detailsHtml += `<div style="padding: 8px; background: rgba(var(--success-color), 0.1); border-radius: 6px;">
+        <div style="font-size: 0.85em; color: var(--text-muted); margin-bottom: 4px;">Test Completed</div>
+        <div style="font-weight: 600;">${new Date(result.timestamp).toLocaleString()}</div>
+      </div>`;
+      
+      if (result.averageTime) {
+        detailsHtml += `<div style="padding: 8px; background: rgba(var(--success-color), 0.1); border-radius: 6px;">
+          <div style="font-size: 0.85em; color: var(--text-muted); margin-bottom: 4px;">Response Time</div>
+          <div style="font-weight: 600;">${result.averageTime}ms</div>
+        </div>`;
+      }
+      
+      if (result.packetLoss !== undefined) {
+        const lossColor = result.packetLoss > 0 ? 'var(--warning-color)' : 'var(--success-color)';
+        detailsHtml += `<div style="padding: 8px; background: rgba(var(--success-color), 0.1); border-radius: 6px;">
+          <div style="font-size: 0.85em; color: var(--text-muted); margin-bottom: 4px;">Packet Loss</div>
+          <div style="font-weight: 600; color: ${lossColor};">${result.packetLoss}%</div>
+        </div>`;
+      }
+      
+      detailsHtml += `</div>`;
+      
+      if (detailsDiv) detailsDiv.innerHTML = detailsHtml;
+      
+      // Show advanced trace button
+      if (advancedBtn) {
+        advancedBtn.style.display = 'inline-block';
+        advancedBtn.onclick = () => showAdvancedTrace(result.target);
+      }
+      
+    } else {
+      if (statusDiv) statusDiv.innerHTML = '<div class="connectivity-status error">❌ Connection Failed</div>';
+      if (resultsContainer) resultsContainer.style.display = 'block'; // Show results container
+      
+      let detailsHtml = `<div style="text-align: center; margin-bottom: 15px;">
+        <strong style="color: var(--danger-color); font-size: 1.1em;">❌ Could not connect to ${result.target}</strong>
+      </div>`;
+      
+      detailsHtml += `<div style="text-align: center; margin-bottom: 15px;">
+        <div style="padding: 8px; background: rgba(var(--danger-color), 0.1); border-radius: 6px; display: inline-block;">
+          <div style="font-size: 0.85em; color: var(--text-muted); margin-bottom: 4px;">Test Completed</div>
+          <div style="font-weight: 600;">${new Date(result.timestamp).toLocaleString()}</div>
+        </div>
+      </div>`;
+      
+      detailsHtml += `<div style="background: rgba(255, 193, 7, 0.1); border: 1px solid rgba(255, 193, 7, 0.3); border-radius: 8px; padding: 16px;">`;
+      detailsHtml += `<div style="font-weight: 600; margin-bottom: 10px; color: var(--warning-color);">💡 Things to try:</div>`;
+      detailsHtml += `<ul style="margin: 0; padding-left: 20px; line-height: 1.6;">`;
+      detailsHtml += `<li>Check if the website name is spelled correctly</li>`;
+      detailsHtml += `<li>Try a simple website like "google.com"</li>`;
+      detailsHtml += `<li>Make sure your internet connection is working</li>`;
+      detailsHtml += `<li>Try an IP address like "8.8.8.8"</li>`;
+      detailsHtml += `</ul></div>`;
+      
+      if (detailsDiv) detailsDiv.innerHTML = detailsHtml;
+    }
+    
+    console.log('[Network] Connectivity test completed successfully');
+    
+    // Complete progress bar
+    clearInterval(progressInterval);
+    if (progressFill) progressFill.style.width = '100%';
+    if (progressText) progressText.textContent = '100%';
+    
+    // Brief delay to show completion, then hide loading
+    setTimeout(() => {
+      if (loadingMessage) loadingMessage.style.display = 'none';
+    }, 500);
+    
+  } catch (error) {
+    console.error('[Network] Error testing connectivity:', error);
+    
+    // Complete progress bar even on error
+    clearInterval(progressInterval);
+    if (progressFill) progressFill.style.width = '100%';
+    if (progressText) progressText.textContent = 'Failed';
+    
+    if (statusDiv) statusDiv.innerHTML = '<div class="connectivity-status error">❌ Test Failed</div>';
+    if (resultsContainer) resultsContainer.style.display = 'block'; // Show results container
+    
+    let detailsHtml = `<div style="text-align: center; margin-bottom: 15px;">
+      <strong style="color: var(--danger-color); font-size: 1.1em;">❌ Connection test failed</strong>
+    </div>`;
+    
+    detailsHtml += `<div style="text-align: center; margin-bottom: 15px;">
+      <div style="padding: 8px; background: rgba(var(--danger-color), 0.1); border-radius: 6px; display: inline-block;">
+        <div style="font-size: 0.85em; color: var(--text-muted); margin-bottom: 4px;">Error</div>
+        <div style="font-weight: 600;">${error.message}</div>
+      </div>
+    </div>`;
+    
+    detailsHtml += `<div style="background: rgba(255, 193, 7, 0.1); border: 1px solid rgba(255, 193, 7, 0.3); border-radius: 8px; padding: 16px;">`;
+    detailsHtml += `<div style="font-weight: 600; margin-bottom: 10px; color: var(--warning-color);">💡 Things to try:</div>`;
+    detailsHtml += `<ul style="margin: 0; padding-left: 20px; line-height: 1.6;">`;
+    detailsHtml += `<li>Check if the website name is spelled correctly</li>`;
+    detailsHtml += `<li>Try a simple website like "google.com"</li>`;
+    detailsHtml += `<li>Make sure your internet connection is working</li>`;
+    detailsHtml += `<li>Try an IP address like "8.8.8.8"</li>`;
+    detailsHtml += `</ul></div>`;
+    
+    if (detailsDiv) detailsDiv.innerHTML = detailsHtml;
+    showNotification('❌ Connection test failed. Check the error details above.', 'error');
+    
+    // Hide loading after brief delay
+    setTimeout(() => {
+      if (loadingMessage) loadingMessage.style.display = 'none';
+    }, 1000);
+  } finally {
+    clearInterval(progressInterval);
+    loadingMessage.style.display = 'none';
+  }
+}
+
+// Show advanced trace route
+async function showAdvancedTrace() {
+  if (!isNetworkAPIAvailable()) return;
+  
+  const traceResults = document.getElementById('traceResults');
+  const advancedBtn = document.getElementById('advancedTraceBtn');
+  
+  if (!lastConnectivityResult || !lastConnectivityResult.success) {
+    showNotification('Please run a successful connectivity test first.', 'error');
+    return;
+  }
+  
+  // Show loading state
+  advancedBtn.disabled = true;
+  advancedBtn.innerHTML = '<span class="btn-icon">⏳</span> Tracing Route...';
+  traceResults.style.display = 'block';
+  traceResults.innerHTML = '<div class="loading-message">Tracing route... This may take up to 60 seconds.</div>';
+  
+  try {
+    const result = await window.networkAPI.traceRoute(lastConnectivityResult.target);
+    
+    // Display trace results
+    let traceHtml = `<div style="text-align: center; margin-bottom: 20px;">
+      <div style="font-size: 1.1em; font-weight: 600; color: var(--text-primary); margin-bottom: 8px;">
+        🛤️ Route Trace to ${result.target}
+      </div>
+      <div style="font-size: 0.9em; color: var(--text-muted);">
+        ${new Date(result.timestamp).toLocaleString()}
+      </div>
+    </div>`;
+    
+    if (result.success && result.hops && result.hops.length > 0) {
+      traceHtml += '<div style="margin-bottom: 15px;"><strong style="color: var(--accent-primary);">🔗 Network Hops:</strong></div>';
+      traceHtml += '<div style="display: grid; gap: 8px;">';
+      
+      result.hops.forEach((hop, index) => {
+        // Add visual indicators for hop types
+        let hopIcon = '🔄';
+        if (index === 0) hopIcon = '🏠'; // First hop (router)
+        if (index === result.hops.length - 1) hopIcon = '🎯'; // Last hop (destination)
+        
+        traceHtml += `<div class="trace-hop" style="display: flex; align-items: center; gap: 10px;">
+          <div style="font-size: 1.2em; min-width: 30px; text-align: center;">${hopIcon}</div>
+          <div style="min-width: 60px; font-weight: 600; color: var(--accent-primary);">Hop ${hop.hop}</div>
+          <div style="flex: 1; font-family: 'Consolas', 'Monaco', monospace; font-size: 0.9em; word-break: break-all;">
+            ${hop.details}
+          </div>
+        </div>`;
+      });
+      
+      traceHtml += '</div>';
+    } else {
+      traceHtml += '<div style="margin-bottom: 15px;"><strong style="color: var(--accent-primary);">📄 Full Output:</strong></div>';
+      traceHtml += `<div style="background: rgba(var(--text-primary), 0.05); border: 1px solid var(--border-light); border-radius: 8px; padding: 16px; font-family: 'Consolas', 'Monaco', monospace; font-size: 0.85em; line-height: 1.5; white-space: pre-wrap; word-break: break-all; max-height: 400px; overflow-y: auto;">
+        ${result.output || 'No detailed output available'}
+      </div>`;
+    }
+    
+    traceResults.innerHTML = traceHtml;
+    
+    console.log('[Network] Trace route completed:', result);
+    
+  } catch (error) {
+    console.error('[Network] Trace route error:', error);
+    traceResults.innerHTML = `<strong>Error:</strong> ${error.message}`;
+    showNotification('❌ Route trace failed. Check the error details above.', 'error');
+  } finally {
+    advancedBtn.disabled = false;
+    advancedBtn.innerHTML = '<span class="btn-icon">🛤️</span> Show Route Trace';
+  }
+}
+
+// DNS Lookup function
+async function performDnsLookup() {
+  console.log('[Network] performDnsLookup called');
+  
+  if (!isNetworkAPIAvailable()) return;
+  
+  const targetInput = document.getElementById('dnsTarget');
+  const resultsContainer = document.getElementById('dnsResults');
+  
+  if (!targetInput) {
+    showNotification('❌ Cannot find DNS input field', 'error');
+    return;
+  }
+  
+  const domain = targetInput.value.trim();
+  
+  if (!domain) {
+    showNotification('Please enter a website name to look up (like google.com).', 'error');
+    return;
+  }
+  
+  // Basic validation for domain format
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9-._]*[a-zA-Z0-9]$/.test(domain)) {
+    showNotification('Please enter a valid website name (like google.com or example.org).', 'error');
+    return;
+  }
+  
+  // Show loading state
+  if (resultsContainer) {
+    resultsContainer.style.display = 'block';
+    resultsContainer.innerHTML = '<div class="loading-message">🔍 Looking up DNS records...</div>';
+  }
+  
+  try {
+    console.log('[Network] About to perform DNS lookup...');
+    const result = await window.networkAPI.performDnsLookup(domain);
+    console.log('[Network] DNS lookup result:', result);
+    
+    // Display results
+    let resultsHtml = `<strong>🔍 DNS Lookup for ${result.domain}</strong><br><br>`;
+    resultsHtml += `<strong>Completed at:</strong> ${new Date(result.timestamp).toLocaleString()}<br><br>`;
+    
+    if (result.success && result.records && result.records.length > 0) {
+      resultsHtml += '<strong>✅ DNS Records Found:</strong><br><br>';
+      result.records.forEach(record => {
+        resultsHtml += `<div class="dns-record">
+          <div class="dns-record-type">${record.type}</div>
+          <div class="dns-record-value">${record.value}</div>
+        </div>`;
+      });
+    } else {
+      resultsHtml += '<strong>❌ No DNS records found or lookup failed</strong><br><br>';
+      resultsHtml += `<div style="background: rgba(255, 193, 7, 0.1); border: 1px solid rgba(255, 193, 7, 0.3); border-radius: 6px; padding: 15px;">`;
+      resultsHtml += `<strong>💡 Things to check:</strong><br>`;
+      resultsHtml += `• Make sure the website name is spelled correctly<br>`;
+      resultsHtml += `• Try without "www" (just use "google.com" not "www.google.com")<br>`;
+      resultsHtml += `• Check if your internet connection is working</div>`;
+    }
+    
+    if (resultsContainer) resultsContainer.innerHTML = resultsHtml;
+    
+    console.log('[Network] DNS lookup completed successfully');
+    
+  } catch (error) {
+    console.error('[Network] Error performing DNS lookup:', error);
+    
+    let resultsHtml = `<strong>❌ Lookup Failed</strong><br><br>`;
+    resultsHtml += `We couldn't look up the address for "${domain}".<br><br>`;
+    resultsHtml += `<strong>Error:</strong> ${error.message}<br><br>`;
+    resultsHtml += `<div style="background: rgba(255, 193, 7, 0.1); border: 1px solid rgba(255, 193, 7, 0.3); border-radius: 6px; padding: 15px;">`;
+    resultsHtml += `<strong>💡 Things to check:</strong><br>`;
+    resultsHtml += `• Make sure the website name is spelled correctly<br>`;
+    resultsHtml += `• Try without "www" (just use "google.com" not "www.google.com")<br>`;
+    resultsHtml += `• Check if your internet connection is working</div>`;
+    
+    if (resultsContainer) resultsContainer.innerHTML = resultsHtml;
+    showNotification('❌ DNS lookup failed. Check the error details above.', 'error');
+  }
+}
+
+// Clear DNS cache
+async function flushDns() {
+  console.log('[Network] flushDns called');
+  
+  if (!isNetworkAPIAvailable()) return;
+  
+  try {
+    console.log('[Network] Calling flushDns...');
+    showNotification('🔄 Clearing DNS cache...', 'info');
+    
+    const result = await window.networkAPI.flushDns();
+    console.log('[Network] DNS flush result:', result);
+    
+    if (result.success) {
+      showNotification('✅ DNS cache cleared successfully! This can help fix website loading issues.', 'success');
+    } else {
+      showNotification('❌ Failed to clear DNS cache. Try restarting your computer.', 'error');
+    }
+    
+  } catch (error) {
+    console.error('[Network] Error flushing DNS:', error);
+    showNotification(`❌ Failed to clear DNS cache: ${error.message}`, 'error');
+  }
+}
+
+// Renew IP address
+async function renewIpConfig() {
+  console.log('[Network] renewIpConfig called');
+  
+  if (!isNetworkAPIAvailable()) return;
+  
+  try {
+    console.log('[Network] Calling renewIpConfig...');
+    showNotification('🔄 Renewing IP address...', 'info');
+    
+    const result = await window.networkAPI.renewIpConfig();
+    console.log('[Network] IP renewal result:', result);
+    
+    if (result.success) {
+      showNotification('✅ IP address renewed successfully! This can help fix connection issues.', 'success');
+    } else {
+      showNotification('❌ Failed to renew IP address. Try restarting your router.', 'error');
+    }
+    
+  } catch (error) {
+    console.error('[Network] Error renewing IP:', error);
+    showNotification(`❌ Failed to renew IP address: ${error.message}`, 'error');
+  }
+}
+
+// Reset network stack
+async function resetNetworkStack() {
+  const confirmed = await showModal({
+    type: 'warning',
+    title: '⚠️ Reset Network Settings',
+    message: `This will reset ALL of your Windows network settings to defaults.
+
+⚠️ WARNING: This is an advanced operation that will:
+• Reset all network adapters to default settings
+• Clear all network configurations
+• May temporarily disconnect your internet
+• Requires a computer restart to complete
+
+❓ When to use this:
+• When basic fixes (Clear DNS, Renew IP) don't work
+• If you're having persistent connection problems
+• As a last resort for network issues
+
+💡 RECOMMENDATION: Try "Clear DNS Cache" and "Renew IP Address" first.
+
+Are you sure you want to reset your network settings?`,
+    confirmText: 'Yes, Reset Network Settings',
+    cancelText: 'Cancel - Go Back',
+    showCancel: true
+  });
+  
+  if (!confirmed) return;
+  
+  const resultsContainer = document.getElementById('diagnosticResults');
+  const loadingEl = document.querySelector('#networkDiagnosticsCard .loadingMessage');
+  const statusText = loadingEl.querySelector('.statusText');
+  
+  // Show loading state
+  loadingEl.style.display = 'block';
+  resultsContainer.style.display = 'none';
+  statusText.textContent = 'Resetting Network Settings (Advanced)';
+  
+  try {
+    const result = await window.networkAPI.resetNetworkStack();
+    
+    // Hide loading and show results
+    loadingEl.style.display = 'none';
+    resultsContainer.style.display = 'block';
+    
+    let resultsHtml = `<strong>✅ Network Settings Reset Complete</strong><br>`;
+    resultsHtml += `<span style="color: var(--success-color);">${result.message}</span><br><br>`;
+    
+    resultsHtml += `<div style="background: rgba(255, 193, 7, 0.1); border: 1px solid rgba(255, 193, 7, 0.3); border-radius: 6px; padding: 15px; margin: 15px 0;">
+      <strong style="color: var(--warning-color);">🔄 Next Steps:</strong><br>
+      <ol style="margin: 10px 0 0 20px; color: var(--text-secondary);">
+        <li>Restart your computer for changes to take full effect</li>
+        <li>After restart, your internet should work with default settings</li>
+        <li>You may need to reconnect to Wi-Fi networks</li>
+      </ol>
+    </div>`;
+    
+    if (result.results) {
+      resultsHtml += '<details style="margin-top: 15px;"><summary style="cursor: pointer; color: var(--accent-primary);">Technical Details (Click to expand)</summary>';
+      result.results.forEach(cmdResult => {
+        const status = cmdResult.success ? '✅' : '❌';
+        const color = cmdResult.success ? 'var(--success-color)' : 'var(--danger-color)';
+        resultsHtml += `<div style="margin: 10px 0;">
+          <strong style="color: ${color};">${status} ${cmdResult.command}</strong><br>
+          <pre style="margin-left: 20px; font-size: 12px;">${cmdResult.output}</pre>
+        </div>`;
+      });
+      resultsHtml += '</details>';
+    }
+    
+    resultsContainer.innerHTML = resultsHtml;
+    
+    showNotification('Network settings reset completed! Please restart your computer.', 'success');
+    console.log('[Network] Network stack reset completed:', result);
+    
+  } catch (error) {
+    console.error('[Network] Network stack reset error:', error);
+    
+    loadingEl.style.display = 'none';
+    resultsContainer.style.display = 'block';
+    resultsContainer.innerHTML = `
+      <strong style="color: var(--danger-color);">❌ Reset Failed</strong><br>
+      <p>The network reset could not be completed.</p>
+      <details style="margin-top: 10px;">
+        <summary style="cursor: pointer; color: var(--accent-primary);">Error Details</summary>
+        <pre style="margin-top: 10px; font-size: 12px; color: var(--danger-color);">${error.message}</pre>
+      </details>
+      <div style="background: rgba(13, 110, 253, 0.1); border: 1px solid rgba(13, 110, 253, 0.3); border-radius: 6px; padding: 10px; margin-top: 15px;">
+        <strong>💡 What to try instead:</strong><br>
+        <ol style="margin: 5px 0 0 20px; font-size: 0.9rem;">
+          <li>Try "Clear DNS Cache" button</li>
+          <li>Try "Renew IP Address" button</li>
+          <li>Restart your router (unplug for 30 seconds)</li>
+          <li>Contact your internet provider if problems persist</li>
+        </ol>
+      </div>
+    `;
+    
+    showNotification('Failed to reset network settings. Try basic fixes first.', 'error');
+  }
+}
+
+// Initialize network page event listeners
+document.addEventListener('DOMContentLoaded', () => {
+  console.log('[Network] DOM loaded, setting up network page...');
+  console.log('[Network] networkAPI available:', !!window.networkAPI);
+  
+  // Wait a bit for APIs to be fully loaded, then test
+  setTimeout(() => {
+    console.log('[Network] Testing API availability after delay...');
+    console.log('[Network] networkAPI methods:', window.networkAPI ? Object.keys(window.networkAPI) : 'undefined');
+    
+    if (window.networkAPI) {
+      console.log('[Network] Available methods:', Object.keys(window.networkAPI));
+      // Test if we can call at least one method
+      window.networkAPI.getNetworkInfo().then(() => {
+        console.log('[Network] ✅ Network API is working properly');
+      }).catch((error) => {
+        console.warn('[Network] ⚠️ Network API test failed:', error.message);
+      });
+    } else {
+      console.error('[Network] ❌ networkAPI is not available!');
+    }
+  }, 1000);
+  
+  const connectivityInput = document.getElementById('connectivityTarget');
+  const dnsInput = document.getElementById('dnsTarget');
+  
+  if (connectivityInput) {
+    connectivityInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        testConnectivity();
+      }
+    });
+    console.log('[Network] Connectivity input listener added');
+  }
+  
+  if (dnsInput) {
+    dnsInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        performDnsLookup();
+      }
+    });
+    console.log('[Network] DNS input listener added');
+  }
+  
+  // Add a global test function for debugging
+  window.testNetworkAPI = async function() {
+    console.log('[Network] Testing network API...');
+    if (!window.networkAPI) {
+      console.log('[Network] networkAPI is not available');
+      return false;
+    }
+    
+    try {
+      console.log('[Network] Attempting to get network info...');
+      const networkInfo = await window.networkAPI.getNetworkInfo();
+      console.log('[Network] Network info received:', networkInfo);
+      return true;
+    } catch (error) {
+      console.log('[Network] Network API test failed:', error);
+      return false;
+    }
+  };
+  
+  // Add debug test button to network page (only in development)
+  if (window.location.hostname === 'localhost' || window.location.href.includes('file://')) {
+    const networkSection = document.getElementById('network');
+    if (networkSection) {
+      const debugButton = document.createElement('button');
+      debugButton.innerHTML = '🔧 Debug Network API';
+      debugButton.className = 'tool-btn secondary';
+      debugButton.style.margin = '10px';
+      debugButton.onclick = async () => {
+        console.log('🔧 [DEBUG] Testing network API...');
+        const result = await window.testNetworkAPI();
+        showNotification(`🔧 Network API Test: ${result ? 'PASSED ✅' : 'FAILED ❌'}`, result ? 'success' : 'error');
+      };
+      networkSection.appendChild(debugButton);
+    }
+  }
+  
+  console.log('[Network] Test function added to window.testNetworkAPI()');
+});
+
+// Refresh network adapters information
+async function refreshNetworkAdapters() {
+  console.log('[Network] refreshNetworkAdapters called');
+  
+  if (!isNetworkAPIAvailable()) return;
+  
+  const networkAdaptersGrid = document.getElementById('networkAdaptersGrid');
+  const refreshBtn = document.querySelector('#networkAdaptersCard .tool-btn.secondary');
+  
+  if (!networkAdaptersGrid) {
+    console.log('[Network] No networkAdaptersGrid found, exiting');
+    return;
+  }
+  
+  // Show loading state
+  if (refreshBtn) {
+    refreshBtn.disabled = true;
+    refreshBtn.innerHTML = '<span class="btn-icon">🔄</span> Loading...';
+  }
+  
+  networkAdaptersGrid.innerHTML = '<div class="loading-message">🔄 Loading network adapters...</div>';
+  
+  try {
+    console.log('[Network] About to call getNetworkAdapters...');
+    const adapters = await window.networkAPI.getNetworkAdapters();
+    console.log('[Network] Network adapters received:', adapters);
+    
+    // Group adapters by type for better organization
+    const adapterGroups = {
+      'Physical': [],
+      'Virtual': [],
+      'System': []
+    };
+    
+    console.log('[Network] Processing adapters...');
+    adapters.forEach((adapter, index) => {
+      console.log(`Processing Adapter ${index + 1}: ${adapter.name}`);
+      
+      try {
+        const info = getAdapterInfo(adapter);
+        
+        const hasValidIPv4 = adapter.addresses.some(addr => 
+          addr.family === 'IPv4' && 
+          !addr.internal && 
+          addr.address && 
+          addr.address !== '0.0.0.0' &&
+          !addr.address.startsWith('169.254.') // Exclude APIPA addresses
+        );
+        
+        const hasValidIPv6 = adapter.addresses.some(addr => 
+          addr.family === 'IPv6' && 
+          !addr.internal && 
+          addr.address && 
+          !addr.address.startsWith('fe80:') // Exclude link-local addresses
+        );
+        
+        // Determine final status
+        let finalStatus = 'Disconnected'; // Default to disconnected
+        
+        if (adapter.status) {
+          // Trust the system-provided status if available
+          finalStatus = adapter.status;
+        } else if (hasValidIPv4 || hasValidIPv6) {
+          finalStatus = 'Connected';
+        }
+        
+        // Get IP addresses
+        const ipv4Address = adapter.addresses.find(addr => addr.family === 'IPv4' && !addr.internal);
+        const ipv6Address = adapter.addresses.find(addr => addr.family === 'IPv6' && !addr.internal);
+        const macAddress = adapter.addresses.find(addr => addr.mac && addr.mac !== '00:00:00:00:00:00')?.mac || 
+                           adapter.addresses.find(addr => addr.mac)?.mac || 'Not available';
+        
+        // Create adapter object with enhanced info
+        const adapterData = {
+          originalName: adapter.name,
+          friendlyName: info.friendlyName,
+          type: info.type,
+          icon: info.icon,
+          description: info.description,
+          isEnabled: finalStatus === 'Connected',
+          status: finalStatus,
+          ipv4: ipv4Address ? ipv4Address.address : null,
+          ipv6: ipv6Address ? ipv6Address.address : null,
+          mac: macAddress,
+          addresses: adapter.addresses,
+          addressCount: adapter.addresses.length,
+          sortPriority: getSortPriority(info.type, finalStatus)
+        };
+        
+        // Group adapters
+        if (info.type === 'Wireless' || info.type === 'Wired' || info.type === 'Bluetooth' || info.type === 'Physical') {
+          adapterGroups['Physical'].push(adapterData);
+        } else if (info.type === 'Virtual' || info.type === 'VPN') {
+          adapterGroups['Virtual'].push(adapterData);
+        } else {
+          adapterGroups['System'].push(adapterData);
+        }
+      } catch (error) {
+        console.error(`Error processing adapter ${adapter.name}:`, error);
+      }
+    });
+    
+    // Build adapters grid HTML
+    let adaptersHtml = '';
+    
+    // Display each group with connected adapters first
+    Object.entries(adapterGroups).forEach(([groupName, groupAdapters]) => {
+      if (groupAdapters.length > 0) {
+        console.log(`\n🔄 SORTING ${groupName} group:`);
+        console.log('Before sorting:', groupAdapters.map(a => `${a.friendlyName}: ${a.status} (priority: ${a.sortPriority})`));
+        
+        // Enhanced sorting: First by connection status, then by adapter type priority
+        const sortedAdapters = groupAdapters.sort((a, b) => {
+          // Primary sort: by sort priority (combines status and type)
+          const priorityDiff = a.sortPriority - b.sortPriority;
+          console.log(`  Comparing ${a.friendlyName}(${a.sortPriority}) vs ${b.friendlyName}(${b.sortPriority}) = ${priorityDiff}`);
+          if (priorityDiff !== 0) return priorityDiff;
+          
+          // Secondary sort: by friendly name for consistent ordering
+          const nameDiff = a.friendlyName.localeCompare(b.friendlyName);
+          console.log(`  Name comparison: ${a.friendlyName} vs ${b.friendlyName} = ${nameDiff}`);
+          return nameDiff;
+        });
+        
+        console.log('After sorting:', sortedAdapters.map(a => `${a.friendlyName}: ${a.status} (priority: ${a.sortPriority})`));
+        
+        adaptersHtml += `<div class="adapter-group">
+          <h4 class="adapter-group-title">${groupName} Network Adapters</h4>`;
+        
+        sortedAdapters.forEach(adapter => {
+          const statusIcon = adapter.status === 'Connected' ? '✅' : 
+                           adapter.status === 'Disabled' ? '⭕' : '🔴';
+          const statusText = adapter.status || 'Unknown';
+          const statusColor = adapter.status === 'Connected' ? 'var(--success-color)' : 
+                            adapter.status === 'Disabled' ? 'var(--warning-color)' : 
+                            'var(--danger-color)';
+          
+          adaptersHtml += `<div class="network-adapter-item" data-adapter="${adapter.originalName}">
+            <div class="adapter-header">
+              <div class="adapter-title">
+                <span class="adapter-icon">${adapter.icon}</span>
+                <div class="adapter-title-text">
+                  <span class="adapter-name">${adapter.friendlyName}</span>
+                  <span class="adapter-description">${adapter.description}</span>
+                </div>
+              </div>
+              <div class="adapter-status" style="color: ${statusColor};">
+                ${statusIcon} ${statusText}
+              </div>
+            </div>
+            <div class="adapter-details">
+              <div class="adapter-detail">
+                <span class="detail-label">Device Name:</span>
+                <span class="detail-value" title="${adapter.originalName}">${adapter.originalName}</span>
+              </div>
+              <div class="adapter-detail">
+                <span class="detail-label">IPv4 Address:</span>
+                <span class="detail-value">${adapter.ipv4 || (adapter.status === 'Connected' ? 'DHCP pending' : adapter.status === 'Disconnected' ? 'Not connected' : 'Not assigned')}</span>
+              </div>
+              ${adapter.ipv6 ? `<div class="adapter-detail">
+                <span class="detail-label">IPv6 Address:</span>
+                <span class="detail-value">${adapter.ipv6}</span>
+              </div>` : ''}
+              <div class="adapter-detail">
+                <span class="detail-label">MAC Address:</span>
+                <span class="detail-value">${adapter.mac}</span>
+              </div>
+              <div class="adapter-detail">
+                <span class="detail-label">Type:</span>
+                <span class="detail-value">${adapter.type}</span>
+              </div>
+            </div>
+          </div>`;
+        });
+        
+        adaptersHtml += '</div>';
+      }
+    });
+    
+    if (!adaptersHtml) {
+      adaptersHtml = '<div class="error-message">No network adapters found</div>';
+    }
+    
+    networkAdaptersGrid.innerHTML = adaptersHtml;
+    console.log('[Network] Network adapters displayed successfully');
+    
+  } catch (error) {
+    console.error('❌ [Network] Error getting network adapters:', error);
+    console.error('Error stack:', error.stack);
+    networkAdaptersGrid.innerHTML = `<div class="error-message">❌ Unable to Load Network Adapters<br><br>Error: ${error.message}</div>`;
+  }
+  
+  // Reset button state
+  if (refreshBtn) {
+    refreshBtn.disabled = false;
+    refreshBtn.innerHTML = '<span class="btn-icon">🔄</span> Refresh Network Adapters';
+  }
+}
+
+// Debug function to show all raw network adapters
+async function debugAllNetworkAdapters() {
+  console.log('[Network Debug] Starting comprehensive adapter analysis...');
+  
+  if (!isNetworkAPIAvailable()) return;
+  
+  try {
+    const adapters = await window.networkAPI.getNetworkAdapters();
+    console.log('[Network Debug] Total adapters found:', adapters.length);
+    console.log('[Network Debug] Raw adapter data:', adapters);
+    
+    console.log('\n=== DETAILED ADAPTER BREAKDOWN ===');
+    adapters.forEach((adapter, index) => {
+      console.log(`\n--- Adapter ${index + 1} ---`);
+      console.log('Name:', adapter.name);
+      console.log('Internal:', adapter.internal);
+      console.log('Addresses:', adapter.addresses);
+      console.log('Address count:', adapter.addresses.length);
+      
+      adapter.addresses.forEach((addr, addrIndex) => {
+        console.log(`  Address ${addrIndex + 1}:`, {
+          family: addr.family,
+          address: addr.address,
+          internal: addr.internal,
+          mac: addr.mac
+        });
+      });
+      
+      // Show what our detection would classify this as
+      try {
+        const detection = getAdapterInfo(adapter);
+        console.log('Our classification:', detection);
+      } catch (error) {
+        console.log('Classification error:', error.message);
+        console.log('Raw adapter name for analysis:', adapter.name);
+      }
+      console.log('---');
+    });
+    
+    console.log('\n=== SUMMARY ===');
+    console.log('Looking for ethernet-like names containing:');
+    console.log('- "ethernet", "lan", "realtek", "intel", "broadcom", "marvell", "killer"');
+    console.log('- "local area connection", "adapter", "nic", "card", "connection"');
+    
+    // Show which adapters would be filtered out
+    const filtered = adapters.filter(adapter => {
+      const name = adapter.name.toLowerCase();
+      return name.includes('loopback') || name.includes('pseudo');
+    });
+    
+    console.log('\nAdapters that would be filtered OUT:');
+    filtered.forEach(adapter => {
+      console.log('- ' + adapter.name);
+    });
+    
+    return adapters;
+  } catch (error) {
+    console.error('[Network Debug] Error getting adapters:', error);
+    return [];
+  }
+}
+
+// Make debug function available globally
+window.debugNetworkAdapters = debugAllNetworkAdapters;
+
+// Helper function to get sort priority for network adapters
+function getSortPriority(adapterType, status) {
+  // Lower numbers = higher priority (appear first)
+  // Give HUGE gaps between status levels to ensure connected always beats disconnected
+  
+  const statusMultiplier = {
+    'Connected': 0,        // Highest priority - active connections first
+    'Disconnected': 10000, // Much much lower priority - inactive connections  
+    'Disabled': 20000      // Lowest priority - disabled adapters last
+  };
+  
+  // Adapter type priority within same status (tiny values for fine-tuning)
+  const typePriority = {
+    'Wireless': 1,      // Wi-Fi first within same status
+    'Wired': 2,         // Ethernet second within same status
+    'Bluetooth': 3,     // Bluetooth third within same status
+    'Physical': 4,      // Other physical adapters
+    'Virtual': 5,       // Virtual adapters
+    'VPN': 6,          // VPN adapters
+    'System': 7,       // System adapters last
+    'Other': 8         // Unknown adapters last
+  };
+  
+  const statusValue = (status in statusMultiplier) ? statusMultiplier[status] : 30000; // Default for unknown status (lowest priority)
+  const typeValue = typePriority[adapterType] || 9;     // Default for unknown type
+  
+  const priority = statusValue + typeValue;
+  console.log(`[Network] FINAL Priority calculation for ${adapterType} (${status})`);
+  console.log(`[Network]   Status multiplier: ${statusValue}`);
+  console.log(`[Network]   Type value: ${typeValue}`);
+  console.log(`[Network]   TOTAL PRIORITY: ${priority}`);
+  console.log(`[Network] Ranges: Connected (0-99) >> Disconnected (10000-10099) >> Disabled (20000-20099)`);
+  
+  return priority;
+}
