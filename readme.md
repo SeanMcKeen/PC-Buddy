@@ -4,7 +4,7 @@
 
 **🚀 A Modern Windows System Optimization & Management Tool**
 
-[![Version](https://img.shields.io/badge/version-0.2.2-blue.svg)](https://github.com/SeanMcKeen/pc-buddy/releases)
+[![Version](https://img.shields.io/badge/version-0.2.3-blue.svg)](https://github.com/SeanMcKeen/pc-buddy/releases)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows-lightgrey.svg)](https://www.microsoft.com/windows)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D16.0.0-brightgreen.svg)](https://nodejs.org/)
@@ -26,6 +26,7 @@ PC Buddy is a **comprehensive Windows system optimization tool** built with Elec
 - **Visual Disk Monitoring** - Real-time space usage with progress bars and cleanup
 - **Quick Access Hub** - Essential Windows settings at your fingertips
 - **Custom Shortcuts** - Personalized shortcuts with emoji icons (200+ emojis across 8 categories)
+- **Network Management** - Comprehensive network tools including connectivity testing, DNS lookup, adapter management, and diagnostics
 
 ## ✨ Features
 
@@ -57,6 +58,17 @@ PC Buddy is a **comprehensive Windows system optimization tool** built with Elec
 - **Essential Folders**: AppData, Downloads, Documents, Desktop
 - **System Settings**: Control Panel, Device Manager, Programs & Features, System Properties
 - **Network & Internet**: WiFi, Display, Sound, Windows Update settings
+
+### 🌐 Network Management & Diagnostics
+- **Real-Time Network Information**: Display hostname, local/public IP addresses, DNS servers, ISP, and location
+- **Connectivity Testing**: Ping any website or IP address with detailed response times and packet loss statistics
+- **Advanced Route Tracing**: Visual network path analysis showing each hop between your computer and target
+- **DNS Lookup Tools**: Resolve domain names and display detailed DNS record information
+- **Network Diagnostics**: Clear DNS cache, renew IP configuration, and reset network stack for troubleshooting
+- **Network Adapter Management**: Visual cards showing all network adapters with connection status, IP addresses, and MAC addresses
+- **Smart Adapter Detection**: Automatically identifies and categorizes Wi-Fi, Ethernet, Bluetooth, VPN, and virtual adapters
+- **Connection Status Monitoring**: Real-time connection status with color-coded indicators (✅ Connected, 🔴 Disconnected, ⭕ Disabled)
+- **Professional Network Interface**: Clean, user-friendly display of technical network information
 
 ### ✨ Custom Shortcuts System
 - **Emoji Icons**: 200+ emojis across 8 categories (Smileys, People, Animals, Food, Activities, Travel, Objects, Symbols)
@@ -155,7 +167,57 @@ npm run dist
 
 ## 📝 Version History
 
-### 0.2.2 (Current)
+### 0.2.3 (Current)
+- 🌐 **Brand New Network Management Tab**
+  - **Network Information Display**: Real-time system network info (hostname, local/public IP, DNS servers, ISP, location)
+  - **Connectivity Testing**: Ping any website or IP address with detailed results and response times
+  - **Advanced Route Tracing**: Visual network path analysis with hop-by-hop breakdown
+  - **DNS Lookup Tools**: Domain name resolution with detailed record information
+  - **Network Diagnostics**: Clear DNS cache, renew IP address, reset network stack
+  - **Network Adapter Management**: Visual cards showing all network adapters with connection status, IP addresses, MAC addresses, and types
+  - **Smart Adapter Detection**: Automatically identifies Wi-Fi, Ethernet, Bluetooth, VPN, and virtual adapters
+  - **Connection Status Monitoring**: Real-time status with color-coded indicators (Connected/Disconnected/Disabled)
+
+- 🔧 **Major Code Refactoring & Architecture Improvements**
+  - **Massive Codebase Cleanup**: 537+ lines removed from main.js (34% reduction) through intelligent consolidation
+  - **Utility Module System**: Created comprehensive utility classes (PowerShellUtils, ValidationUtils, BackupUtils, NetworkUtils, SystemUtils)
+  - **Eliminated Code Duplication**: Consolidated 5+ duplicate PowerShell patterns, 4+ backup path implementations, 30+ error handling instances
+  - **Enhanced Security**: Centralized input validation and sanitization across all operations
+  - **Improved Maintainability**: Single source of truth for common operations and consistent error handling patterns
+  - **Better Performance**: Reduced redundancy and optimized resource management
+
+- 🛡️ **Security & Permission Improvements**
+  - **Smart Admin Privilege Management**: App no longer prompts for admin on startup unnecessarily
+  - **Selective Elevation**: Only backup creation requires admin privileges, not backup information reading
+  - **Enhanced Input Validation**: Comprehensive path validation and sanitization to prevent security vulnerabilities
+  - **Improved Error Handling**: Better error messages with context information and security gap prevention
+
+- 🎨 **User Interface & Experience Enhancements**
+  - **Network Tab Integration**: Beautiful masonry layout for network tools with responsive design
+  - **Clean Network Adapter Display**: Removed technical clutter (address count, sort priority) for user-friendly interface
+  - **Enhanced Loading System**: Component-based loading with better progress tracking
+  - **Improved Animations**: Smoother transitions and better performance optimization
+  - **Better Error Feedback**: More helpful error messages and user guidance
+
+- 🔄 **Backup System Improvements**
+  - **Fixed Admin Prompting**: Backup information display no longer requires admin privileges
+  - **Enhanced Security**: Better file handling and permission management
+  - **Improved Performance**: Faster backup information retrieval without unnecessary elevation
+
+- 🛠️ **Technical Infrastructure**
+  - **Enhanced API Architecture**: Better separation of concerns with dedicated network APIs
+  - **Improved Error Handling**: Context-aware error reporting and logging
+  - **Better Resource Management**: Optimized memory usage and performance
+  - **Enhanced Debugging**: Better logging and error tracking capabilities
+  - **Code Organization**: Cleaner file structure and modular design patterns
+
+- 🎭 **Visual & Theme Improvements**
+  - **RGB Mode Implementation**: Full-spectrum color theme option (experimental)
+  - **Better Responsive Design**: Improved layouts for different screen sizes
+  - **Enhanced Visual Hierarchy**: Cleaner information presentation
+  - **Improved Accessibility**: Better contrast and readability
+
+### 0.2.2
 - 🔒 **Enhanced Security Framework**
   - Comprehensive security policy document with 2025 best practices
   - Vulnerability reporting procedures and supported versions
