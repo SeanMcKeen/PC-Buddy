@@ -650,6 +650,12 @@ window.addEventListener('DOMContentLoaded', async () => {
     // Define system info items with icons and types
     const systemInfoItems = [
       {
+        key: 'computerName',
+        label: 'Computer Name',
+        icon: '🏷️',
+        type: 'name'
+      },
+      {
         key: 'operatingSystem',
         label: 'Operating System',
         icon: '🖥️',
@@ -672,12 +678,6 @@ window.addEventListener('DOMContentLoaded', async () => {
         label: 'Memory Usage',
         icon: '💾',
         type: 'memory-combined'
-      },
-      {
-        key: 'computerName',
-        label: 'Computer Name',
-        icon: '🏷️',
-        type: 'name'
       },
       {
         key: 'systemUptime',
@@ -3389,44 +3389,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     console.log('[Network] DNS input listener added');
   }
-  
-  // Add a global test function for debugging
-  window.testNetworkAPI = async function() {
-    console.log('[Network] Testing network API...');
-    if (!window.networkAPI) {
-      console.log('[Network] networkAPI is not available');
-      return false;
-    }
-    
-    try {
-      console.log('[Network] Attempting to get network info...');
-      const networkInfo = await window.networkAPI.getNetworkInfo();
-      console.log('[Network] Network info received:', networkInfo);
-      return true;
-    } catch (error) {
-      console.log('[Network] Network API test failed:', error);
-      return false;
-    }
-  };
-  
-  // Add debug test button to network page (only in development)
-  if (window.location.hostname === 'localhost' || window.location.href.includes('file://')) {
-    const networkSection = document.getElementById('network');
-    if (networkSection) {
-      const debugButton = document.createElement('button');
-      debugButton.innerHTML = '🔧 Debug Network API';
-      debugButton.className = 'tool-btn secondary';
-      debugButton.style.margin = '10px';
-      debugButton.onclick = async () => {
-        console.log('🔧 [DEBUG] Testing network API...');
-        const result = await window.testNetworkAPI();
-        showNotification(`🔧 Network API Test: ${result ? 'PASSED ✅' : 'FAILED ❌'}`, result ? 'success' : 'error');
-      };
-      networkSection.appendChild(debugButton);
-    }
-  }
-  
-  console.log('[Network] Test function added to window.testNetworkAPI()');
 });
 
 // Refresh network adapters information

@@ -119,6 +119,13 @@
   );
 }
 
+/* Make network info items match system info items in gay theme for consistency */
+[data-theme="gay"] .network-info-item {
+  background: rgba(var(--bg-tertiary), 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+}
+
 [data-theme="gay"] .tool-btn,
 [data-theme="gay"] .setting-button,
 [data-theme="gay"] .browse-button {
