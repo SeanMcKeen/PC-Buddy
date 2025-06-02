@@ -91,7 +91,16 @@ class PowerShellUtils {
     
     return new Promise((resolve, reject) => {
       const executor = useSudo ? sudo.exec : exec;
-      const options_param = useSudo ? options : {};
+      
+      // Configure options with increased buffer size for large outputs
+      const execOptions = {
+        maxBuffer: 10 * 1024 * 1024, // 10MB buffer for large driver data
+        timeout: 60000, // 60 second timeout
+        ...(!useSudo ? {} : options)
+      };
+      
+      // For sudo commands, merge with existing options
+      const options_param = useSudo ? { ...options, ...execOptions } : execOptions;
       
       executor(command, options_param, (error, stdout, stderr) => {
         if (error) {
@@ -108,7 +117,16 @@ class PowerShellUtils {
     
     return new Promise((resolve, reject) => {
       const executor = useSudo ? sudo.exec : exec;
-      const options_param = useSudo ? options : {};
+      
+      // Configure options with increased buffer size for large outputs
+      const execOptions = {
+        maxBuffer: 10 * 1024 * 1024, // 10MB buffer for large outputs
+        timeout: 60000, // 60 second timeout
+        ...(!useSudo ? {} : options)
+      };
+      
+      // For sudo commands, merge with existing options
+      const options_param = useSudo ? { ...options, ...execOptions } : execOptions;
       
       executor(fullCommand, options_param, (error, stdout, stderr) => {
         if (error) {
@@ -150,7 +168,7 @@ class BackupUtils {
     return new Promise((resolve, reject) => {
       const regCommand = `reg query "HKCU\\Software\\PC-Buddy" /v BackupLocation 2>nul`;
       
-      exec(regCommand, (error, stdout, stderr) => {
+      exec(regCommand, { maxBuffer: 1024 * 1024 }, (error, stdout, stderr) => {
         if (error) {
           if (log) log('[getCurrentBackupPath] Registry query failed:', error);
           const defaultPath = path.join(os.homedir(), 'Documents', 'PC-Buddy-Backups');
