@@ -296,3 +296,18 @@ contextBridge.exposeInMainWorld('networkAPI', {
   getNetworkAdapters: () => ipcRenderer.invoke('get-network-adapters'),
   pingHost: (host) => ipcRenderer.invoke('ping-host', host)
 });
+
+// Driver Management API
+contextBridge.exposeInMainWorld('driverAPI', {
+  scanSystemDrivers: () => ipcRenderer.invoke('scan-system-drivers'),
+  findDriverUpdates: () => ipcRenderer.invoke('find-driver-updates'),
+  installDriver: (driverInfo) => ipcRenderer.invoke('install-driver', driverInfo),
+  batchInstallDrivers: (driverList) => ipcRenderer.invoke('batch-install-drivers', driverList),
+  getDriverHistory: () => ipcRenderer.invoke('get-driver-history'),
+  revertDriver: (restorePointInfo) => ipcRenderer.invoke('revert-driver', restorePointInfo),
+  getDriverScanStatus: () => ipcRenderer.invoke('get-driver-scan-status'),
+  getDriverUpdateStatus: () => ipcRenderer.invoke('get-driver-update-status'),
+  getDriverInstallStatus: () => ipcRenderer.invoke('get-driver-install-status'),
+  clearDriverStatus: () => ipcRenderer.invoke('clear-driver-status'),
+  openDriverDownloads: () => ipcRenderer.invoke('open-driver-downloads')
+});

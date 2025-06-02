@@ -408,108 +408,212 @@
 
       <div id="drivers" class="section">
         <!-- Driver Scanner & Update Assistant Card -->
-        <div class="tool-card coming-soon">
+        <div class="tool-card" id="driverScannerCard">
           <h3><span class="icon">🔍</span> Driver Scanner & Update Assistant</h3>
           <p class="description">Scan your system for outdated drivers and automatically download the latest versions.</p>
-          <div class="coming-soon-content">
-            <div class="feature-list">
-              <div class="feature-item">
-                <span class="feature-icon">✅</span>
-                <span class="feature-text">Automatic driver detection</span>
-              </div>
-              <div class="feature-item">
-                <span class="feature-icon">✅</span>
-                <span class="feature-text">Version comparison & updates</span>
-              </div>
-              <div class="feature-item">
-                <span class="feature-icon">✅</span>
-                <span class="feature-text">Manufacturer verification</span>
-              </div>
-              <div class="feature-item">
-                <span class="feature-icon">✅</span>
-                <span class="feature-text">Security issue flagging</span>
-              </div>
-              <div class="feature-item">
-                <span class="feature-icon">✅</span>
-                <span class="feature-text">Safe automatic installation</span>
+          
+          <div class="driver-scanner-controls">
+            <button class="tool-btn" id="scanForDriversBtn">
+              <span class="btn-icon">🔍</span>
+              Scan For Updates
+            </button>
+            <button class="tool-btn secondary" id="refreshDriverDataBtn">
+              <span class="btn-icon">🔄</span>
+              Refresh System Info
+            </button>
+            <button class="tool-btn secondary" id="openDriverDownloadsBtn">
+              <span class="btn-icon">📁</span>
+              Open Downloads Folder
+            </button>
+          </div>
+
+          <div id="driverScanProgress" class="loadingMessage" style="display: none;">
+            <div class="modern-spinner">
+              <div class="spinner-ring"></div>
+              <div class="spinner-ring"></div>
+              <div class="spinner-ring"></div>
+            </div>
+            <p class="statusText">Scanning for driver updates...</p>
+            <p class="estimatedTime">This may take 2-5 minutes depending on your system</p>
+            <div id="scanStatusMessages" class="scan-status"></div>
+          </div>
+
+          <!-- System Information Display -->
+          <div id="systemInfoDisplay" class="system-info-display" style="display: none;">
+            <div class="system-info-header">
+              <h4>System Information</h4>
+            </div>
+            <div id="systemInfoGrid" class="driver-system-info-grid">
+              <!-- System info will be populated here -->
+            </div>
+          </div>
+
+          <!-- Driver Updates Display -->
+          <div id="driverUpdatesDisplay" class="driver-updates-display" style="display: none;">
+            <div class="driver-updates-header">
+              <h4 id="updatesFoundTitle">Driver Updates Available</h4>
+              <div class="driver-updates-actions">
+                <button class="tool-btn success" id="downloadAllBtn" style="display: none;">
+                  <span class="btn-icon">⬇️</span>
+                  Download All
+                </button>
               </div>
             </div>
-            <button class="coming-soon-btn" disabled>
-              <span class="btn-icon">🚧</span>
-              Coming Soon
-            </button>
+            
+            <!-- Filter and Sort Controls -->
+            <div class="driver-filters">
+              <div class="filter-group">
+                <label for="categoryFilter">Category:</label>
+                <select id="categoryFilter" class="filter-select">
+                  <option value="">All Categories</option>
+                </select>
+              </div>
+              <div class="filter-group">
+                <label for="manufacturerFilter">Manufacturer:</label>
+                <select id="manufacturerFilter" class="filter-select">
+                  <option value="">All Manufacturers</option>
+                </select>
+              </div>
+            </div>
+            
+            <!-- Driver Updates List -->
+            <div id="driverUpdatesList" class="driver-updates-list">
+              <!-- Driver updates will be populated here -->
+            </div>
           </div>
         </div>
 
-        <!-- Driver Backup & Restore Card -->
-        <div class="tool-card coming-soon">
-          <h3><span class="icon">💾</span> Driver Backup & Restore</h3>
-          <p class="description">Create backups of your current drivers and restore them when needed.</p>
-          <div class="coming-soon-content">
-            <div class="feature-list">
-              <div class="feature-item">
-                <span class="feature-icon">✅</span>
-                <span class="feature-text">Full driver backup</span>
-              </div>
-              <div class="feature-item">
-                <span class="feature-icon">✅</span>
-                <span class="feature-text">Selective restore</span>
-              </div>
-              <div class="feature-item">
-                <span class="feature-icon">✅</span>
-                <span class="feature-text">Rollback protection</span>
+        <!-- System Hardware Overview Card -->
+        <div class="tool-card" id="systemHardwareCard">
+          <h3><span class="icon">🖥️</span> System Hardware Overview</h3>
+          <p class="description">View all system devices and their current driver status for comprehensive hardware management.</p>
+          
+          <div class="hardware-overview-controls">
+            <button class="tool-btn secondary" id="refreshHardwareBtn">
+              <span class="btn-icon">🔄</span>
+              Refresh Hardware
+            </button>
+            <button class="tool-btn secondary" id="exportHardwareBtn">
+              <span class="btn-icon">📄</span>
+              Export Report
+            </button>
+          </div>
+
+          <div id="hardwareProgress" class="loadingMessage" style="display: none;">
+            <div class="modern-spinner">
+              <div class="spinner-ring"></div>
+              <div class="spinner-ring"></div>
+              <div class="spinner-ring"></div>
+            </div>
+            <p class="statusText">Loading hardware information...</p>
+          </div>
+
+          <!-- Hardware Categories Overview -->
+          <div id="hardwareCategoriesOverview" class="hardware-categories-overview" style="display: none;">
+            <div class="categories-grid">
+              <!-- Categories will be populated here -->
+            </div>
+          </div>
+
+          <!-- Hardware Device List -->
+          <div id="hardwareDeviceList" class="hardware-device-list" style="display: none;">
+            <div class="hardware-list-header">
+              <h4>Device List</h4>
+              <div class="hardware-filters">
+                <div class="filter-group">
+                  <label for="hardwareCategoryFilter">Category:</label>
+                  <select id="hardwareCategoryFilter" class="filter-select">
+                    <option value="">All Categories</option>
+                  </select>
+                </div>
+                <div class="filter-group">
+                  <label for="hardwareStatusFilter">Status:</label>
+                  <select id="hardwareStatusFilter" class="filter-select">
+                    <option value="">All Status</option>
+                    <option value="OK">Working</option>
+                    <option value="Error">Error</option>
+                    <option value="Unknown">Unknown</option>
+                  </select>
+                </div>
               </div>
             </div>
-            <button class="coming-soon-btn" disabled>
-              <span class="btn-icon">🚧</span>
-              Coming Soon
-            </button>
+            <div id="deviceListContainer" class="device-list-container">
+              <!-- Device list will be populated here -->
+            </div>
           </div>
         </div>
 
-        <!-- Hardware Information Card -->
-        <div class="tool-card coming-soon">
-          <h3><span class="icon">🖨️</span> Hardware Information</h3>
-          <p class="description">View detailed information about your hardware components and their drivers.</p>
-          <div class="coming-soon-content">
-            <div class="feature-list">
-              <div class="feature-item">
-                <span class="feature-icon">✅</span>
-                <span class="feature-text">Device specifications</span>
+        <!-- Driver Installation History Card -->
+        <div class="tool-card" id="driverHistoryCard">
+          <h3><span class="icon">📜</span> Driver Installation History</h3>
+          <p class="description">View recent driver installations and revert changes if needed.</p>
+          
+          <div class="driver-history-controls">
+            <button class="tool-btn secondary" id="refreshHistoryBtn">
+              <span class="btn-icon">🔄</span>
+              Refresh History
+            </button>
+            <button class="tool-btn secondary" id="clearHistoryBtn">
+              <span class="btn-icon">🗑️</span>
+              Clear History
+            </button>
+          </div>
+
+          <div id="driverHistoryProgress" class="loadingMessage" style="display: none;">
+            <div class="modern-spinner">
+              <div class="spinner-ring"></div>
+              <div class="spinner-ring"></div>
+              <div class="spinner-ring"></div>
+            </div>
+            <p class="statusText">Loading driver history...</p>
+          </div>
+
+          <!-- History Summary -->
+          <div id="historySummary" class="history-summary" style="display: none;">
+            <div class="summary-stats">
+              <div class="stat-item">
+                <span class="stat-label">PC Buddy Installs:</span>
+                <span class="stat-value" id="pcBuddyInstallsCount">0</span>
               </div>
-              <div class="feature-item">
-                <span class="feature-icon">✅</span>
-                <span class="feature-text">Driver versions</span>
+              <div class="stat-item">
+                <span class="stat-label">Windows Updates:</span>
+                <span class="stat-value" id="windowsUpdatesCount">0</span>
               </div>
-              <div class="feature-item">
-                <span class="feature-icon">✅</span>
-                <span class="feature-text">Performance metrics</span>
+              <div class="stat-item">
+                <span class="stat-label">Restore Points:</span>
+                <span class="stat-value" id="restorePointsCount">0</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">Last Installation:</span>
+                <span class="stat-value" id="lastInstallDate">Never</span>
               </div>
             </div>
-            <button class="coming-soon-btn" disabled>
-              <span class="btn-icon">🚧</span>
-              Coming Soon
-            </button>
+          </div>
+
+          <!-- Driver History List -->
+          <div id="driverHistoryList" class="driver-history-list">
+            <!-- History entries will be populated here -->
           </div>
         </div>
 
-        <!-- Development Notice -->
-        <div class="tool-card development-notice">
-          <h3><span class="icon">⚡</span> Driver Tools in Development</h3>
-          <p class="description">These powerful driver management features are currently being developed and will be available in a future update.</p>
-          <div class="development-info">
-            <div class="development-item">
-              <span class="development-label">Expected Release:</span>
-              <span class="development-value">Q2 2025</span>
-            </div>
-            <div class="development-item">
-              <span class="development-label">Status:</span>
-              <span class="development-value">Active Development</span>
-            </div>
-            <div class="development-item">
-              <span class="development-label">Priority:</span>
-              <span class="development-value">High</span>
-            </div>
+        <!-- System Restore Points Card -->
+        <div class="tool-card" id="restorePointsCard">
+          <h3><span class="icon">⏮️</span> System Restore Points</h3>
+          <p class="description">View and manage system restore points for driver rollbacks.</p>
+          
+          <div class="restore-points-controls">
+            <button class="tool-btn secondary" id="refreshRestorePointsBtn">
+              <span class="btn-icon">🔄</span>
+              Refresh Points
+            </button>
+            <button class="tool-btn warning" id="createRestorePointBtn">
+              <span class="btn-icon">💾</span>
+              Create Restore Point
+            </button>
+          </div>
+
+          <div id="restorePointsList" class="restore-points-list">
+            <!-- Restore points will be populated here -->
           </div>
         </div>
       </div>

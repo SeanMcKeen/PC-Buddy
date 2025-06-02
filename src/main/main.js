@@ -1300,3 +1300,243 @@ ipcMain.handle('reset-network-stack', async () => {
   }
 });
 
+// ====================================
+// DRIVER MANAGEMENT API HANDLERS
+// ====================================
+
+// Scan system for driver information
+ipcMain.handle('scan-system-drivers', async () => {
+  try {
+    log('[Driver Scan] Starting system driver scan...');
+    return await PowerShellUtils.executeScript('getDriverInfo.ps1', [], false);
+  } catch (error) {
+    log('[Driver Scan Error]', error);
+    throw ValidationUtils.createError('Failed to scan system drivers', 'scan-system-drivers');
+  }
+});
+
+// Find available driver updates
+ipcMain.handle('find-driver-updates', async () => {
+  try {
+    log('[Driver Updates] Searching for driver updates...');
+    return await PowerShellUtils.executeScript('findDriverUpdates.ps1', [], false);
+  } catch (error) {
+    log('[Driver Updates Error]', error);
+    throw ValidationUtils.createError('Failed to find driver updates', 'find-driver-updates');
+  }
+});
+
+// Download and install a specific driver
+ipcMain.handle('install-driver', async (event, driverInfo) => {
+  try {
+    const { name, downloadURL, manufacturer, category, version, updateID } = driverInfo;
+    
+    // Validate input parameters
+    if (!name || typeof name !== 'string') {
+      throw ValidationUtils.createError('Invalid driver name', 'install-driver');
+    }
+    
+    const sanitizedName = ValidationUtils.validateStringInput(name, 200, 'install-driver');
+    const sanitizedManufacturer = manufacturer ? ValidationUtils.validateStringInput(manufacturer, 100, 'install-driver') : 'Unknown';
+    const sanitizedCategory = category ? ValidationUtils.validateStringInput(category, 50, 'install-driver') : 'Other';
+    const sanitizedVersion = version ? ValidationUtils.validateStringInput(version, 50, 'install-driver') : 'Unknown';
+    
+    log(`[Driver Install] Installing driver: ${sanitizedName} from ${sanitizedManufacturer}`);
+    
+    const args = [
+      `-DriverName "${sanitizedName}"`,
+      `-Manufacturer "${sanitizedManufacturer}"`,
+      `-Category "${sanitizedCategory}"`,
+      `-DriverVersion "${sanitizedVersion}"`
+    ];
+    
+    if (downloadURL && downloadURL !== 'Windows Update') {
+      args.push(`-DownloadURL "${downloadURL}"`);
+    }
+    
+    if (updateID) {
+      args.push(`-UpdateID "${updateID}"`);
+    }
+    
+    return await PowerShellUtils.executeScript('downloadInstallDriver.ps1', args, true);
+  } catch (error) {
+    log('[Driver Install Error]', error);
+    throw ValidationUtils.createError('Failed to install driver', 'install-driver');
+  }
+});
+
+// Get driver installation history
+ipcMain.handle('get-driver-history', async () => {
+  try {
+    log('[Driver History] Getting driver installation history...');
+    return await PowerShellUtils.executeScript('getDriverHistory.ps1', [], false);
+  } catch (error) {
+    log('[Driver History Error]', error);
+    throw ValidationUtils.createError('Failed to get driver history', 'get-driver-history');
+  }
+});
+
+// Revert driver using system restore
+ipcMain.handle('revert-driver', async (event, restorePointInfo) => {
+  try {
+    const { restorePointNumber, restorePointDescription } = restorePointInfo;
+    
+    if (!restorePointNumber && !restorePointDescription) {
+      throw ValidationUtils.createError('Either restore point number or description must be provided', 'revert-driver');
+    }
+    
+    log(`[Driver Revert] Reverting to restore point: ${restorePointNumber || restorePointDescription}`);
+    
+    const args = [];
+    if (restorePointNumber) {
+      args.push(`-RestorePointNumber "${restorePointNumber}"`);
+    }
+    if (restorePointDescription) {
+      args.push(`-RestorePointDescription "${restorePointDescription}"`);
+    }
+    
+    return await PowerShellUtils.executeScript('revertDriver.ps1', args, true);
+  } catch (error) {
+    log('[Driver Revert Error]', error);
+    throw ValidationUtils.createError('Failed to revert driver', 'revert-driver');
+  }
+});
+
+// Get driver scan status
+ipcMain.handle('get-driver-scan-status', async () => {
+  try {
+    const statusFile = path.join(os.tmpdir(), 'driver_scan_status.txt');
+    if (fs.existsSync(statusFile)) {
+      const status = fs.readFileSync(statusFile, 'utf8');
+      return status.split('\n').filter(line => line.trim()).slice(-10); // Last 10 status messages
+    }
+    return [];
+  } catch (error) {
+    log('[Driver Status Error]', error);
+    return [];
+  }
+});
+
+// Get driver update status
+ipcMain.handle('get-driver-update-status', async () => {
+  try {
+    const statusFile = path.join(os.tmpdir(), 'driver_update_status.txt');
+    if (fs.existsSync(statusFile)) {
+      const status = fs.readFileSync(statusFile, 'utf8');
+      return status.split('\n').filter(line => line.trim()).slice(-10); // Last 10 status messages
+    }
+    return [];
+  } catch (error) {
+    log('[Driver Update Status Error]', error);
+    return [];
+  }
+});
+
+// Get driver installation status
+ipcMain.handle('get-driver-install-status', async () => {
+  try {
+    const statusFile = path.join(os.tmpdir(), 'driver_install_status.txt');
+    if (fs.existsSync(statusFile)) {
+      const status = fs.readFileSync(statusFile, 'utf8');
+      return status.split('\n').filter(line => line.trim()).slice(-10); // Last 10 status messages
+    }
+    return [];
+  } catch (error) {
+    log('[Driver Install Status Error]', error);
+    return [];
+  }
+});
+
+// Clear driver status files
+ipcMain.handle('clear-driver-status', async () => {
+  try {
+    const statusFiles = [
+      path.join(os.tmpdir(), 'driver_scan_status.txt'),
+      path.join(os.tmpdir(), 'driver_update_status.txt'),
+      path.join(os.tmpdir(), 'driver_install_status.txt'),
+      path.join(os.tmpdir(), 'driver_revert_status.txt')
+    ];
+    
+    for (const file of statusFiles) {
+      if (fs.existsSync(file)) {
+        fs.writeFileSync(file, '');
+      }
+    }
+    
+    return true;
+  } catch (error) {
+    log('[Clear Status Error]', error);
+    return false;
+  }
+});
+
+// Open driver downloads folder
+ipcMain.handle('open-driver-downloads', async () => {
+  try {
+    const downloadsPath = path.join(os.tmpdir(), 'PC-Buddy-Drivers');
+    
+    // Create directory if it doesn't exist
+    if (!fs.existsSync(downloadsPath)) {
+      fs.mkdirSync(downloadsPath, { recursive: true });
+    }
+    
+    await shell.openPath(downloadsPath);
+    return true;
+  } catch (error) {
+    throw new Error(`Failed to open driver downloads folder: ${error.message}`);
+  }
+});
+
+// Batch install multiple drivers
+ipcMain.handle('batch-install-drivers', async (event, driverList) => {
+  try {
+    if (!Array.isArray(driverList) || driverList.length === 0) {
+      throw ValidationUtils.createError('Invalid driver list provided', 'batch-install-drivers');
+    }
+    
+    log(`[Batch Install] Installing ${driverList.length} drivers...`);
+    
+    const results = [];
+    
+    for (const driver of driverList) {
+      try {
+        log(`[Batch Install] Installing: ${driver.name}`);
+        const result = await PowerShellUtils.executeScript('downloadInstallDriver.ps1', [
+          `-DriverName "${driver.name}"`,
+          `-Manufacturer "${driver.manufacturer || 'Unknown'}"`,
+          `-Category "${driver.category || 'Other'}"`,
+          `-DriverVersion "${driver.version || 'Unknown'}"`,
+          driver.downloadURL ? `-DownloadURL "${driver.downloadURL}"` : '',
+          driver.updateID ? `-UpdateID "${driver.updateID}"` : ''
+        ].filter(arg => arg), true);
+        
+        results.push({
+          driver: driver.name,
+          success: result.includes('SUCCESS'),
+          message: result
+        });
+      } catch (error) {
+        log(`[Batch Install] Failed to install ${driver.name}:`, error);
+        results.push({
+          driver: driver.name,
+          success: false,
+          message: error.message
+        });
+      }
+    }
+    
+    const successCount = results.filter(r => r.success).length;
+    log(`[Batch Install] Completed: ${successCount}/${driverList.length} drivers installed successfully`);
+    
+    return {
+      total: driverList.length,
+      successful: successCount,
+      failed: driverList.length - successCount,
+      results: results
+    };
+  } catch (error) {
+    log('[Batch Install Error]', error);
+    throw ValidationUtils.createError('Failed to batch install drivers', 'batch-install-drivers');
+  }
+});
+

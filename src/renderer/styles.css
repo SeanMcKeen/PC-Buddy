@@ -3304,3 +3304,1183 @@ input:checked + .toggle-slider:before {
     font-size: 0.85rem;
   }
 }
+
+/* ===========================
+   DRIVER MANAGEMENT STYLES
+   =========================== */
+
+/* Driver Scanner Controls */
+.driver-scanner-controls {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.driver-scanner-controls .tool-btn {
+  min-width: 150px;
+}
+
+/* System Information Display */
+.system-info-display {
+  margin: 20px 0;
+  padding: 15px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+}
+
+.system-info-header {
+  margin-bottom: 15px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.system-info-header h4 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.driver-system-info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 15px;
+}
+
+.system-info-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 15px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.system-info-item:hover {
+  background: var(--bg-primary);
+  border-color: var(--accent-primary);
+}
+
+.info-label {
+  font-weight: 500;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.info-value {
+  font-weight: 600;
+  color: var(--text-primary);
+  text-align: right;
+  word-break: break-word;
+  max-width: 60%;
+}
+
+/* Driver Updates Display */
+.driver-updates-display {
+  margin: 20px 0;
+}
+
+.driver-updates-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 15px;
+  border-bottom: 2px solid var(--border-color);
+}
+
+.driver-updates-header h4 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.driver-updates-actions {
+  display: flex;
+  gap: 10px;
+}
+
+/* Driver Filters */
+.driver-filters {
+  display: flex;
+  gap: 15px;
+  margin-bottom: 20px;
+  padding: 15px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  flex-wrap: wrap;
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 150px;
+}
+
+.filter-group label {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.filter-select {
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+}
+
+.filter-select:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 2px rgba(8, 63, 145, 0.1);
+}
+
+.filter-select:hover {
+  border-color: var(--accent-secondary);
+}
+
+/* Driver Updates List */
+.driver-updates-list {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.driver-update-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 20px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.driver-update-item:hover {
+  border-color: var(--accent-primary);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+}
+
+.driver-update-item::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  background: var(--accent-primary);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.driver-update-item:hover::before {
+  opacity: 1;
+}
+
+.driver-update-info {
+  flex: 1;
+  margin-right: 20px;
+}
+
+.driver-update-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
+  gap: 15px;
+}
+
+.driver-name {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.3;
+  flex: 1;
+}
+
+.driver-category {
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+.driver-category.normal {
+  background: var(--accent-primary);
+  color: white;
+}
+
+.driver-category.critical {
+  background: var(--danger-color);
+  color: white;
+  animation: pulse 2s infinite;
+}
+
+.driver-details {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.driver-detail {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 0;
+}
+
+.detail-label {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.detail-value {
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  font-weight: 600;
+  text-align: right;
+  max-width: 60%;
+  word-break: break-word;
+}
+
+.driver-description {
+  margin-top: 10px;
+  padding: 10px;
+  background: var(--bg-tertiary);
+  border-radius: 6px;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.driver-update-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.driver-install-btn {
+  min-width: 160px;
+  white-space: nowrap;
+}
+
+/* No Updates Message */
+.no-updates-message {
+  text-align: center;
+  padding: 40px 20px;
+  background: var(--bg-secondary);
+  border: 2px dashed var(--border-color);
+  border-radius: 12px;
+  margin: 20px 0;
+}
+
+.no-updates-icon {
+  font-size: 3rem;
+  margin-bottom: 15px;
+}
+
+.no-updates-text {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.no-updates-subtitle {
+  font-size: 0.95rem;
+  color: var(--text-muted);
+}
+
+/* Driver History Styles */
+.driver-history-controls {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.history-summary {
+  margin: 20px 0;
+  padding: 20px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+}
+
+.summary-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 15px;
+}
+
+.stat-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 15px;
+  background: var(--bg-tertiary);
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.stat-item:hover {
+  background: var(--bg-primary);
+  transform: translateY(-1px);
+}
+
+.stat-label {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.stat-value {
+  font-size: 1.1rem;
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+/* Driver History List */
+.driver-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.history-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 18px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.history-item:hover {
+  border-color: var(--accent-primary);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.history-item.install::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  background: var(--accent-primary);
+}
+
+.history-item.restore_point::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  background: var(--warning-color);
+}
+
+.history-item-info {
+  flex: 1;
+  margin-right: 15px;
+}
+
+.history-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 10px;
+  gap: 10px;
+}
+
+.history-item-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.3;
+  flex: 1;
+}
+
+.history-item-source {
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+.history-item-source.pc-buddy {
+  background: var(--accent-primary);
+  color: white;
+}
+
+.history-item-source.windows-update {
+  background: var(--success-color);
+  color: white;
+}
+
+.history-item-source.system-restore {
+  background: var(--warning-color);
+  color: white;
+}
+
+.history-item-details {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.history-detail {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 2px 0;
+}
+
+.history-detail .detail-label {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.history-detail .detail-value {
+  font-size: 0.8rem;
+  color: var(--text-primary);
+  font-weight: 500;
+  text-align: right;
+}
+
+.history-detail .status.success {
+  color: var(--success-color);
+  font-weight: 600;
+}
+
+.history-detail .status.failed {
+  color: var(--danger-color);
+  font-weight: 600;
+}
+
+.history-item-actions {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.revert-btn {
+  min-width: 100px;
+  font-size: 0.9rem;
+  padding: 8px 16px;
+}
+
+/* No History Message */
+.no-history-message {
+  text-align: center;
+  padding: 40px 20px;
+  background: var(--bg-secondary);
+  border: 2px dashed var(--border-color);
+  border-radius: 12px;
+  margin: 20px 0;
+}
+
+.no-history-icon {
+  font-size: 3rem;
+  margin-bottom: 15px;
+}
+
+.no-history-text {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.no-history-subtitle {
+  font-size: 0.95rem;
+  color: var(--text-muted);
+}
+
+/* Restore Points Card */
+.restore-points-controls {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.restore-points-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.restore-point-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.restore-point-item:hover {
+  border-color: var(--warning-color);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.restore-point-info {
+  flex: 1;
+}
+
+.restore-point-description {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 5px;
+}
+
+.restore-point-date {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.restore-point-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* Scan Status Messages */
+.scan-status {
+  max-height: 300px;
+  overflow-y: auto;
+  padding: 0;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+}
+
+/* Enhanced Progress Log Styles */
+.status-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 15px;
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border-color);
+  border-radius: 8px 8px 0 0;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.status-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+}
+
+.status-icon {
+  animation: spin 2s linear infinite;
+}
+
+.status-timestamp {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.status-messages-container {
+  padding: 10px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.status-message {
+  margin-bottom: 8px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border-left: 3px solid var(--border-color);
+  background: var(--bg-primary);
+  transition: all 0.2s ease;
+  animation: fadeInUp 0.3s ease;
+}
+
+.status-message:last-child {
+  margin-bottom: 0;
+  border-left-color: var(--accent-primary);
+  background: rgba(8, 63, 145, 0.05);
+}
+
+.status-message-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.status-message-icon {
+  font-size: 0.9rem;
+  margin-right: 8px;
+}
+
+.status-message-time {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.status-message-text {
+  font-size: 0.85rem;
+  line-height: 1.4;
+  color: var(--text-primary);
+  word-wrap: break-word;
+}
+
+/* Status Message Types */
+.status-message.error {
+  border-left-color: #dc3545;
+  background: rgba(220, 53, 69, 0.05);
+}
+
+.status-message.success {
+  border-left-color: #28a745;
+  background: rgba(40, 167, 69, 0.05);
+}
+
+.status-message.scanning {
+  border-left-color: #ffc107;
+  background: rgba(255, 193, 7, 0.05);
+}
+
+.status-message.found {
+  border-left-color: #17a2b8;
+  background: rgba(23, 162, 184, 0.05);
+}
+
+.status-message.info {
+  border-left-color: var(--accent-primary);
+  background: rgba(8, 63, 145, 0.03);
+}
+
+/* Success and Warning Button Variants */
+.tool-btn.success {
+  background: linear-gradient(135deg, var(--success-color), var(--success-dark));
+  color: white;
+  border: none;
+}
+
+.tool-btn.success:hover {
+  background: linear-gradient(135deg, var(--success-dark), var(--success-color));
+  transform: translateY(-1px);
+}
+
+.tool-btn.warning {
+  background: linear-gradient(135deg, var(--warning-color), var(--warning-dark));
+  color: white;
+  border: none;
+}
+
+.tool-btn.warning:hover {
+  background: linear-gradient(135deg, var(--warning-dark), var(--warning-color));
+  transform: translateY(-1px);
+}
+
+/* Gay Theme Driver Enhancements */
+[data-theme="gay"] .driver-update-item {
+  border: 2px solid;
+  border-image: linear-gradient(45deg, 
+    hsl(0, 100%, 50%),
+    hsl(60, 100%, 50%),
+    hsl(120, 100%, 50%),
+    hsl(180, 100%, 50%),
+    hsl(240, 100%, 50%),
+    hsl(300, 100%, 50%),
+    hsl(360, 100%, 50%)
+  ) 1;
+  animation: rainbowBorder 3s linear infinite;
+}
+
+[data-theme="gay"] .driver-update-item:hover {
+  animation: rainbowBorderFast 1.5s linear infinite;
+  box-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
+}
+
+[data-theme="gay"] .driver-category.critical {
+  background: linear-gradient(45deg, 
+    hsl(0, 100%, 50%),
+    hsl(60, 100%, 50%),
+    hsl(120, 100%, 50%)
+  );
+  background-size: 400% 400%;
+  animation: rainbowBackground 1s ease-in-out infinite;
+}
+
+[data-theme="gay"] .history-item.install::before {
+  background: linear-gradient(180deg, 
+    hsl(0, 100%, 50%),
+    hsl(120, 100%, 50%),
+    hsl(240, 100%, 50%)
+  );
+  background-size: 100% 400%;
+  animation: rainbowProgress 2s linear infinite;
+}
+
+[data-theme="gay"] .history-item.restore_point::before {
+  background: linear-gradient(180deg, 
+    hsl(30, 100%, 50%),
+    hsl(90, 100%, 50%),
+    hsl(210, 100%, 50%)
+  );
+  background-size: 100% 400%;
+  animation: rainbowProgress 2s linear infinite;
+}
+
+/* Responsive Design for Driver Page */
+@media (max-width: 768px) {
+  .driver-scanner-controls {
+    flex-direction: column;
+  }
+  
+  .driver-scanner-controls .tool-btn {
+    width: 100%;
+  }
+  
+  .driver-filters {
+    flex-direction: column;
+  }
+  
+  .filter-group {
+    min-width: 100%;
+  }
+  
+  .driver-update-item {
+    flex-direction: column;
+    gap: 15px;
+  }
+  
+  .driver-update-info {
+    margin-right: 0;
+  }
+  
+  .driver-update-actions {
+    align-items: stretch;
+    width: 100%;
+  }
+  
+  .driver-install-btn {
+    width: 100%;
+  }
+  
+  .driver-system-info-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .driver-details {
+    grid-template-columns: 1fr;
+  }
+  
+  .summary-stats {
+    grid-template-columns: 1fr;
+  }
+  
+  .history-item {
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  .history-item-header {
+    flex-direction: column;
+    gap: 5px;
+  }
+  
+  .history-item-actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+  
+  .revert-btn {
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .driver-update-header {
+    flex-direction: column;
+    gap: 10px;
+    align-items: flex-start;
+  }
+  
+  .driver-updates-actions {
+    width: 100%;
+  }
+  
+  #downloadAllBtn {
+    width: 100%;
+  }
+}
+
+/* System Hardware Overview Styles */
+.hardware-overview-controls {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.hardware-categories-overview {
+  margin-bottom: 20px;
+}
+
+.categories-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.category-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 15px;
+  text-align: center;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.category-card:hover {
+  border-color: var(--accent-primary);
+  background: var(--bg-tertiary);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.category-icon {
+  font-size: 2rem;
+  margin-bottom: 8px;
+  display: block;
+}
+
+.category-name {
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 5px;
+  font-size: 0.95rem;
+}
+
+.category-count {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.category-status {
+  margin-top: 8px;
+  font-size: 0.8rem;
+  padding: 3px 8px;
+  border-radius: 12px;
+  display: inline-block;
+}
+
+.category-status.all-ok {
+  background: rgba(40, 167, 69, 0.1);
+  color: #28a745;
+}
+
+.category-status.has-issues {
+  background: rgba(220, 53, 69, 0.1);
+  color: #dc3545;
+}
+
+.category-status.unknown {
+  background: rgba(108, 117, 125, 0.1);
+  color: #6c757d;
+}
+
+.hardware-device-list {
+  margin-top: 20px;
+}
+
+.hardware-list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 15px;
+  border-bottom: 2px solid var(--border-color);
+  flex-wrap: wrap;
+  gap: 15px;
+}
+
+.hardware-list-header h4 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.hardware-filters {
+  display: flex;
+  gap: 15px;
+  flex-wrap: wrap;
+}
+
+.device-list-container {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.device-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.device-item:hover {
+  border-color: var(--accent-primary);
+  background: var(--bg-tertiary);
+}
+
+.device-info {
+  flex: 1;
+  margin-right: 15px;
+}
+
+.device-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.device-icon {
+  font-size: 1.2rem;
+}
+
+.device-name {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+}
+
+.device-category-badge {
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-light);
+}
+
+.device-details {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.device-detail-item {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+}
+
+.device-detail-label {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.device-detail-value {
+  color: var(--text-primary);
+  font-weight: 400;
+  text-align: right;
+  word-break: break-word;
+  max-width: 60%;
+}
+
+.device-status {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.device-status-icon {
+  font-size: 1rem;
+}
+
+.device-status-text {
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.device-status.working {
+  color: #28a745;
+}
+
+.device-status.error {
+  color: #dc3545;
+}
+
+.device-status.unknown {
+  color: #6c757d;
+}
+
+.no-devices-message {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text-secondary);
+}
+
+.no-devices-icon {
+  font-size: 3rem;
+  margin-bottom: 15px;
+  opacity: 0.6;
+}
+
+.no-devices-text {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.no-devices-subtitle {
+  font-size: 0.9rem;
+  opacity: 0.8;
+}
+
+/* Responsive design for hardware overview */
+@media (max-width: 768px) {
+  .categories-grid {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  }
+  
+  .hardware-list-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .hardware-filters {
+    width: 100%;
+    justify-content: stretch;
+  }
+  
+  .filter-group {
+    flex: 1;
+    min-width: 120px;
+  }
+  
+  .device-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  
+  .device-info {
+    margin-right: 0;
+    width: 100%;
+  }
+  
+  .device-details {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Hardware pagination styles */
+.hardware-pagination-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px;
+  background: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  margin-bottom: 15px;
+}
+
+.pagination-info {
+  font-size: 0.9em;
+  color: var(--secondary-text);
+}
+
+.pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.page-indicator {
+  font-size: 0.9em;
+  color: var(--text-color);
+  padding: 0 10px;
+}
+
+.tool-btn.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.devices-container {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Active category card styles */
+.category-card.active {
+  background: var(--accent-color);
+  color: white;
+  transform: scale(1.02);
+  box-shadow: 0 4px 12px rgba(0, 123, 255, 0.3);
+}
+
+.category-card.active .category-status {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* Device list toggle button */
+.device-list-toggle {
+  margin-bottom: 15px;
+  width: 100%;
+  justify-content: center;
+}
+
+.device-list-toggle:hover {
+  background: var(--hover-color);
+}
