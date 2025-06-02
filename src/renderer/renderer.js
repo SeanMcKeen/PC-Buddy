@@ -3865,12 +3865,18 @@ async function scanForDriverUpdates() {
       currentDriverUpdates = JSON.parse(updateData);
       console.log('[Driver Scan] Updates found:', currentDriverUpdates);
 
-      // Handle different response structures
-      if (currentDriverUpdates.Updates) {
+      // Handle different response structures - ensure we always get an array
+      if (currentDriverUpdates.Updates && Array.isArray(currentDriverUpdates.Updates)) {
         updates = currentDriverUpdates.Updates;
-      } else if (currentDriverUpdates.AvailableUpdates) {
+      } else if (currentDriverUpdates.AvailableUpdates && Array.isArray(currentDriverUpdates.AvailableUpdates)) {
         updates = currentDriverUpdates.AvailableUpdates;
+      } else {
+        // Fallback: if the data structure is different, try to find any array property
+        updates = [];
+        console.warn('[Driver Scan] Unexpected response structure, using empty array');
       }
+      
+      console.log('[Driver Scan] Extracted updates array:', updates, 'Length:', updates.length);
     } catch (updateError) {
       console.error('[Driver Scan] Update search failed:', updateError);
       
@@ -3882,7 +3888,15 @@ async function scanForDriverUpdates() {
         UpdatesByCategory: {}
       };
       
+      updates = []; // Ensure updates is always an array
+      
       showNotification('Driver update search failed (this is normal in development). Hardware scan completed successfully.', 'warning');
+    }
+
+    // Validate updates is an array before proceeding
+    if (!Array.isArray(updates)) {
+      console.warn('[Driver Scan] Updates is not an array, converting:', typeof updates);
+      updates = [];
     }
 
     // Show download all button if updates available
@@ -3892,7 +3906,7 @@ async function scanForDriverUpdates() {
       downloadAllBtn.style.display = 'none';
     }
 
-    // Populate filters
+    // Populate filters - now safe to call .map()
     populateDriverFilters(updates, categoryFilter, manufacturerFilter);
 
     // Display updates
@@ -3959,32 +3973,41 @@ function displaySystemInfo(systemData, container) {
 
 // Populate filter dropdowns
 function populateDriverFilters(updates, categoryFilter, manufacturerFilter) {
-  if (!updates || updates.length === 0) return;
-
-  // Get unique categories and manufacturers
-  const categories = [...new Set(updates.map(u => u.Category).filter(c => c))];
-  const manufacturers = [...new Set(updates.map(u => u.Manufacturer).filter(m => m))];
-
-  // Populate category filter
-  if (categoryFilter) {
-    categoryFilter.innerHTML = '<option value="">All Categories</option>';
-    categories.sort().forEach(category => {
-      const option = document.createElement('option');
-      option.value = category;
-      option.textContent = category;
-      categoryFilter.appendChild(option);
-    });
+  // Safety check: ensure updates is an array
+  if (!updates || !Array.isArray(updates) || updates.length === 0) {
+    console.log('[Driver Filters] No updates array provided or empty, skipping filter population');
+    return;
   }
 
-  // Populate manufacturer filter
-  if (manufacturerFilter) {
-    manufacturerFilter.innerHTML = '<option value="">All Manufacturers</option>';
-    manufacturers.sort().forEach(manufacturer => {
-      const option = document.createElement('option');
-      option.value = manufacturer;
-      option.textContent = manufacturer;
-      manufacturerFilter.appendChild(option);
-    });
+  try {
+    // Get unique categories and manufacturers
+    const categories = [...new Set(updates.map(u => u.Category).filter(c => c))];
+    const manufacturers = [...new Set(updates.map(u => u.Manufacturer).filter(m => m))];
+
+    // Populate category filter
+    if (categoryFilter) {
+      categoryFilter.innerHTML = '<option value="">All Categories</option>';
+      categories.sort().forEach(category => {
+        const option = document.createElement('option');
+        option.value = category;
+        option.textContent = category;
+        categoryFilter.appendChild(option);
+      });
+    }
+
+    // Populate manufacturer filter
+    if (manufacturerFilter) {
+      manufacturerFilter.innerHTML = '<option value="">All Manufacturers</option>';
+      manufacturers.sort().forEach(manufacturer => {
+        const option = document.createElement('option');
+        option.value = manufacturer;
+        option.textContent = manufacturer;
+        manufacturerFilter.appendChild(option);
+      });
+    }
+  } catch (error) {
+    console.error('[Driver Filters] Error populating filters:', error);
+    console.log('[Driver Filters] Updates data:', updates);
   }
 }
 

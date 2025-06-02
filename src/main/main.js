@@ -51,7 +51,12 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
-      devTools: !app.isPackaged
+      devTools: !app.isPackaged,
+      // Fix for blurry text on high DPI displays
+      enableBlinkFeatures: 'HighDPICanvas',
+      zoomFactor: 1.0,
+      webSecurity: false,
+      allowRunningInsecureContent: true
     }
   });
 
@@ -92,6 +97,14 @@ ipcMain.on('start-update', () => {
   log('[Updater] User confirmed install. Quitting and installing.');
   autoUpdater.quitAndInstall();
 });
+
+// Enable DPI awareness for crisp text rendering
+if (process.platform === 'win32') {
+  // Set DPI awareness for Windows
+  app.commandLine.appendSwitch('high-dpi-support', 'true');
+  app.commandLine.appendSwitch('force-device-scale-factor', '1');
+  app.commandLine.appendSwitch('disable-features', 'VizDisplayCompositor');
+}
 
 app.whenReady().then(createWindow);
 
@@ -1308,7 +1321,24 @@ ipcMain.handle('reset-network-stack', async () => {
 ipcMain.handle('scan-system-drivers', async () => {
   try {
     log('[Driver Scan] Starting system driver scan...');
-    return await PowerShellUtils.executeScript('getDriverInfo.ps1', [], false);
+    const result = await PowerShellUtils.executeScript('getDriverInfo.ps1', [], false);
+    
+    // The script already saves to temp file, but let's ensure it's saved for other scripts to use
+    const tempFilePath = path.join(os.tmpdir(), 'driver_info.json');
+    try {
+      // Verify the file was created by the script
+      if (fs.existsSync(tempFilePath)) {
+        log('[Driver Scan] Driver info saved to temp file for other operations');
+      } else {
+        // If for some reason the script didn't save it, save it ourselves
+        fs.writeFileSync(tempFilePath, result, 'utf8');
+        log('[Driver Scan] Saved driver info to temp file as backup');
+      }
+    } catch (fileError) {
+      log('[Driver Scan] Warning: Could not verify temp file:', fileError.message);
+    }
+    
+    return result;
   } catch (error) {
     log('[Driver Scan Error]', error);
     throw ValidationUtils.createError('Failed to scan system drivers', 'scan-system-drivers');
@@ -1319,6 +1349,30 @@ ipcMain.handle('scan-system-drivers', async () => {
 ipcMain.handle('find-driver-updates', async () => {
   try {
     log('[Driver Updates] Searching for driver updates...');
+    
+    // Check if driver info file exists, if not, run scan first
+    const tempFilePath = path.join(os.tmpdir(), 'driver_info.json');
+    if (!fs.existsSync(tempFilePath)) {
+      log('[Driver Updates] Driver info file not found, running driver scan first...');
+      await PowerShellUtils.executeScript('getDriverInfo.ps1', [], false);
+      
+      // Verify the file was created
+      if (!fs.existsSync(tempFilePath)) {
+        throw new Error('Failed to generate driver information file');
+      }
+      log('[Driver Updates] Driver scan completed, proceeding with update search...');
+    } else {
+      // Check if file is stale (older than 1 hour)
+      const fileStats = fs.statSync(tempFilePath);
+      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+      
+      if (fileStats.mtime < oneHourAgo) {
+        log('[Driver Updates] Driver info file is stale, refreshing...');
+        await PowerShellUtils.executeScript('getDriverInfo.ps1', [], false);
+        log('[Driver Updates] Driver info refreshed, proceeding with update search...');
+      }
+    }
+    
     return await PowerShellUtils.executeScript('findDriverUpdates.ps1', [], false);
   } catch (error) {
     log('[Driver Updates Error]', error);
@@ -1539,4 +1593,3 @@ ipcMain.handle('batch-install-drivers', async (event, driverList) => {
     throw ValidationUtils.createError('Failed to batch install drivers', 'batch-install-drivers');
   }
 });
-

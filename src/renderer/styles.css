@@ -199,8 +199,18 @@ body {
   background-color: var(--bg-primary);
   margin: 0;
   padding: 0;
+  font-size: 14px;
+  line-height: 1.5;
   color: var(--text-primary);
-  transition: background-color 0.3s ease, color 0.3s ease;
+  overflow-x: hidden;
+  /* Font smoothing for crisp text on high DPI displays */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  /* Additional optimizations for better text clarity */
+  font-feature-settings: "liga", "kern";
+  font-kerning: normal;
+  font-variant-ligatures: common-ligatures;
 }
 
 /* Hide scrollbars */
@@ -4483,4 +4493,12 @@ input:checked + .toggle-slider:before {
 
 .device-list-toggle:hover {
   background: var(--hover-color);
+}
+
+* {
+  box-sizing: border-box;
+  /* Ensure all text elements have proper antialiasing */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }

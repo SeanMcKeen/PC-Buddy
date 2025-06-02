@@ -92,23 +92,48 @@ class PowerShellUtils {
     return new Promise((resolve, reject) => {
       const executor = useSudo ? sudo.exec : exec;
       
-      // Configure options with increased buffer size for large outputs
-      const execOptions = {
-        maxBuffer: 10 * 1024 * 1024, // 10MB buffer for large driver data
-        timeout: 60000, // 60 second timeout
-        ...(!useSudo ? {} : options)
+      // Configure options with increased buffer size for large outputs like driver data
+      const options = {
+        maxBuffer: 10 * 1024 * 1024, // 10MB buffer for driver scans
+        timeout: scriptName.includes('driver') ? 120000 : 60000, // 2 minutes for driver operations, 1 minute for others
+        encoding: 'utf8'
       };
       
-      // For sudo commands, merge with existing options
-      const options_param = useSudo ? { ...options, ...execOptions } : execOptions;
+      if (log) log(`[PowerShell] Executing ${scriptName} with timeout ${options.timeout}ms`);
       
-      executor(command, options_param, (error, stdout, stderr) => {
-        if (error) {
-          if (log) log(`[PowerShell] ${scriptName} failed:`, error);
-          return reject(new Error(stderr || error.message));
-        }
-        resolve(stdout.trim());
-      });
+      if (useSudo) {
+        executor(command, options, (error, stdout, stderr) => {
+          if (error) {
+            if (log) log(`[PowerShell] ${scriptName} failed:`, error);
+            reject(error);
+          } else {
+            if (log) log(`[PowerShell] ${scriptName} completed successfully`);
+            resolve(stdout);
+          }
+        });
+      } else {
+        executor(command, options, (error, stdout, stderr) => {
+          if (error) {
+            if (log) log(`[PowerShell] ${scriptName} failed:`, error);
+            
+            // Provide more specific error messages for driver operations
+            if (scriptName.includes('driver')) {
+              if (error.signal === 'SIGTERM') {
+                reject(new Error('Driver scan timed out. This may happen on systems with many devices. Please try again.'));
+              } else if (error.code === 'ENOENT') {
+                reject(new Error('PowerShell not found. Please ensure PowerShell is installed.'));
+              } else {
+                reject(new Error(`Driver scan failed: ${error.message}`));
+              }
+            } else {
+              reject(error);
+            }
+          } else {
+            if (log) log(`[PowerShell] ${scriptName} completed successfully`);
+            resolve(stdout);
+          }
+        });
+      }
     });
   }
 

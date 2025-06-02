@@ -51,19 +51,44 @@ function Get-SystemInfo {
     }
 }
 
-# Function to get all hardware devices and their drivers
+# Function to get all hardware devices and their drivers (optimized)
 function Get-HardwareDevices {
     try {
-        $devices = Get-WmiObject -Class Win32_PnPEntity | Where-Object { $_.DeviceID -and $_.Name }
+        Write-Status "Starting device enumeration..."
+        
+        # Get all devices in one query to minimize WMI overhead
+        $devices = Get-WmiObject -Class Win32_PnPEntity | Where-Object { 
+            $_.DeviceID -and $_.Name -and $_.Status -eq "OK" 
+        }
+        
+        Write-Status "Found $($devices.Count) active devices, getting driver information..."
+        
+        # GET ALL PNP DRIVERS IN ONE QUERY - This is the key optimization!
+        $allPnPDrivers = @{}
+        try {
+            $pnpDrivers = Get-WmiObject -Class Win32_PnPSignedDriver
+            foreach ($driver in $pnpDrivers) {
+                if ($driver.DeviceID) {
+                    $allPnPDrivers[$driver.DeviceID] = $driver
+                }
+            }
+            Write-Status "Loaded $($allPnPDrivers.Count) PnP driver records for fast lookup"
+        } catch {
+            Write-Status "Warning: Could not load PnP drivers, will use registry lookups only"
+        }
+        
         $deviceList = @()
+        $processedCount = 0
         
         foreach ($device in $devices) {
             try {
-                # Get driver details
-                $driverQuery = "ASSOCIATORS OF {Win32_PnPEntity.DeviceID='$($device.DeviceID)'} WHERE AssocClass=Win32_SystemDriverPNPEntity"
-                $driver = Get-WmiObject -Query $driverQuery -ErrorAction SilentlyContinue
+                # Skip certain device types that don't need driver updates to speed up processing
+                if ($device.PNPClass -in @("Volume", "DiskDrive", "SCSIAdapter") -and 
+                    $device.Name -notmatch "Graphics|Audio|Network|USB|Bluetooth") {
+                    continue
+                }
                 
-                # Get additional device properties
+                # Get basic device properties
                 $deviceObj = @{
                     Name = $device.Name
                     DeviceID = $device.DeviceID
@@ -78,38 +103,86 @@ function Get-HardwareDevices {
                     DriverDate = $null
                     DriverProvider = $null
                     Category = $null
+                    DriverFile = $null
+                    DriverCompany = $null
+                    DriverInfName = $null
                 }
                 
-                if ($driver) {
-                    $deviceObj.Driver = $driver.Name
-                    $deviceObj.DriverVersion = $driver.Version
-                    $deviceObj.DriverDate = $driver.InstallDate
-                    $deviceObj.DriverProvider = $driver.DriverProviderName
+                # Categorize device first to skip non-important devices
+                $deviceObj.Category = Get-DeviceCategory -Device $device
+                
+                # Skip "Other" category devices that aren't important for driver updates
+                if ($deviceObj.Category -eq "Other" -and 
+                    $device.Name -notmatch "Graphics|Audio|Network|USB|Bluetooth|Intel|AMD|NVIDIA|Realtek") {
+                    continue
                 }
                 
-                # Try to get driver info from registry
-                if ($device.DeviceID) {
+                # Fast lookup in our pre-loaded PnP drivers hash table
+                if ($allPnPDrivers.ContainsKey($device.DeviceID)) {
+                    $pnpDriver = $allPnPDrivers[$device.DeviceID]
+                    $deviceObj.DriverVersion = $pnpDriver.DriverVersion
+                    $deviceObj.DriverDate = $pnpDriver.DriverDate
+                    $deviceObj.DriverProvider = $pnpDriver.DriverProviderName
+                    $deviceObj.DriverInfName = $pnpDriver.InfName
+                }
+                
+                # Only do expensive registry lookups for important devices without driver info
+                if (-not $deviceObj.DriverVersion -and $deviceObj.Category -in @("Graphics", "Audio", "Network", "Chipset", "USB", "Bluetooth")) {
                     try {
-                        $regPath = "HKLM:\SYSTEM\CurrentControlSet\Enum\$($device.DeviceID)"
+                        $cleanDeviceID = $device.DeviceID -replace '\\', '\\'
+                        $regPath = "HKLM:\SYSTEM\CurrentControlSet\Enum\$cleanDeviceID"
+                        
                         if (Test-Path $regPath) {
                             $regData = Get-ItemProperty -Path $regPath -ErrorAction SilentlyContinue
-                            if ($regData.DriverVersion) { $deviceObj.DriverVersion = $regData.DriverVersion }
-                            if ($regData.DriverDate) { $deviceObj.DriverDate = $regData.DriverDate }
+                            
+                            if ($regData.DriverVersion) { 
+                                $deviceObj.DriverVersion = $regData.DriverVersion 
+                            }
+                            if ($regData.DriverDate) { 
+                                $deviceObj.DriverDate = $regData.DriverDate 
+                            }
+                            if ($regData.DriverDesc) { 
+                                $deviceObj.Driver = $regData.DriverDesc 
+                            }
+                            if ($regData.Mfg) { 
+                                $deviceObj.DriverProvider = $regData.Mfg 
+                            }
+                            if ($regData.InfPath) { 
+                                $deviceObj.DriverInfName = $regData.InfPath 
+                            }
                         }
                     } catch {
-                        # Ignore registry errors
+                        # Registry lookup failed, continue with what we have
                     }
                 }
                 
-                # Categorize device
-                $deviceObj.Category = Get-DeviceCategory -Device $device
+                # Clean up version format if we have one
+                if ($deviceObj.DriverVersion) {
+                    $deviceObj.DriverVersion = $deviceObj.DriverVersion.Trim()
+                    
+                    # Convert driver date if it's in YYYYMMDD format
+                    if ($deviceObj.DriverDate -and $deviceObj.DriverDate -match '^\d{8}$') {
+                        $year = $deviceObj.DriverDate.Substring(0, 4)
+                        $month = $deviceObj.DriverDate.Substring(4, 2)  
+                        $day = $deviceObj.DriverDate.Substring(6, 2)
+                        $deviceObj.DriverDate = "$year-$month-$day"
+                    }
+                }
                 
                 $deviceList += $deviceObj
+                $processedCount++
+                
+                # Report progress every 50 devices
+                if ($processedCount % 50 -eq 0) {
+                    Write-Status "Processed $processedCount devices..."
+                }
+                
             } catch {
                 Write-Status "Error processing device $($device.Name): $($_.Exception.Message)"
             }
         }
         
+        Write-Status "Device enumeration completed. Processed $($deviceList.Count) relevant devices."
         return $deviceList
     } catch {
         Write-Status "Error getting hardware devices: $($_.Exception.Message)"
@@ -182,31 +255,6 @@ function Get-MotherboardInfo {
     }
 }
 
-# Function to get installed drivers list
-function Get-InstalledDrivers {
-    try {
-        $drivers = Get-WmiObject -Class Win32_SystemDriver
-        $driverList = @()
-        
-        foreach ($driver in $drivers) {
-            $driverList += @{
-                Name = $driver.Name
-                PathName = $driver.PathName
-                State = $driver.State
-                Status = $driver.Status
-                Description = $driver.Description
-                DisplayName = $driver.DisplayName
-                InstallDate = $driver.InstallDate
-            }
-        }
-        
-        return $driverList
-    } catch {
-        Write-Status "Error getting installed drivers: $($_.Exception.Message)"
-        return @()
-    }
-}
-
 # Main execution
 try {
     Write-Status "Starting driver information scan..."
@@ -219,7 +267,6 @@ try {
         CPUInfo = Get-CPUInfo
         MotherboardInfo = Get-MotherboardInfo
         HardwareDevices = @()
-        InstalledDrivers = @()
         Categories = @{}
     }
     
@@ -229,19 +276,20 @@ try {
     Write-Status "Scanning hardware devices..."
     $outputData.HardwareDevices = Get-HardwareDevices
     
-    Write-Status "Getting installed drivers..."
-    $outputData.InstalledDrivers = Get-InstalledDrivers
-    
     # Group devices by category
-    $outputData.Categories = $outputData.HardwareDevices | Group-Object Category | ForEach-Object {
-        @{ $_.Name = $_.Group }
+    $outputData.Categories = @{}
+    if ($outputData.HardwareDevices.Count -gt 0) {
+        $categoryGroups = $outputData.HardwareDevices | Group-Object Category
+        foreach ($group in $categoryGroups) {
+            $outputData.Categories[$group.Name] = $group.Group
+        }
     }
     
     Write-Status "Scan completed. Found $($outputData.HardwareDevices.Count) devices."
     
     # Convert to JSON and save
     $jsonData = $outputData | ConvertTo-Json -Depth 10
-    $jsonData | Out-File -FilePath $OutputPath -Encoding UTF8
+    $jsonData | Out-File -FilePath $OutputPath -Encoding ASCII
     
     Write-Status "Driver information saved to: $OutputPath"
     
@@ -250,6 +298,21 @@ try {
     
 } catch {
     Write-Status "Fatal error during driver scan: $($_.Exception.Message)"
-    Write-Error "ERROR: $($_.Exception.Message)"
+    
+    # Create a fallback error response
+    $errorResponse = @{
+        ScanDate = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+        SystemType = "Unknown"
+        SystemInfo = @{}
+        CPUInfo = @{}
+        MotherboardInfo = @{}
+        HardwareDevices = @()
+        Categories = @{}
+        Error = $_.Exception.Message
+    }
+    
+    $errorJson = $errorResponse | ConvertTo-Json -Depth 5
+    $errorJson | Out-File -FilePath $OutputPath -Encoding ASCII
+    Write-Output $errorJson
     exit 1
 } 
